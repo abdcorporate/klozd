@@ -1,0 +1,96 @@
+import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { User, authApi } from '@/lib/api';
+
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    organizationName: string;
+  }) => Promise<void>;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+
+      login: async (email: string, password: string) => {
+        try {
+          console.log('Appel API login...');
+          const response = await authApi.login({ email, password });
+          console.log('Réponse API:', response.data);
+          const { accessToken, user } = response.data;
+          
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('token', accessToken);
+          }
+          
+          set({
+            user,
+            token: accessToken,
+            isAuthenticated: true,
+          });
+        } catch (error: any) {
+          console.error('Erreur dans login store:', error);
+          throw error;
+        }
+      },
+
+      register: async (data) => {
+        const response = await authApi.register(data);
+        
+        // Si c'est un cas de renvoi de code (email non vérifié), retourner la réponse sans stocker le token
+        if (response.data?.requiresVerification) {
+          return response;
+        }
+        
+        const { accessToken, user } = response.data;
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('token', accessToken);
+        }
+        
+        set({
+          user,
+          token: accessToken,
+          isAuthenticated: true,
+        });
+        
+        return response;
+      },
+
+      logout: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+        }
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+        });
+      },
+    }),
+    {
+      name: 'auth-storage',
+      storage: typeof window !== 'undefined' 
+        ? createJSONStorage(() => localStorage)
+        : undefined,
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
+    },
+  ),
+);
+

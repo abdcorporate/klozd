@@ -1,0 +1,734 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ORGANIZATIONS & USERS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CLOSER
+  SETTER
+  SUPER_ADMIN // Super Admin interne KLOZD (pas pour les clients)
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum InvitationStatus {
+  INVITED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  CONFLICT
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  timezone  String   @default("Europe/Paris")
+  currency  String   @default("EUR")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users          User[]
+  forms          Form[]
+  leads          Lead[]
+  deals          Deal[]
+  calls          Call[]
+  settings       OrganizationSettings?
+  invitations    Invitation[]
+  sites          Site[]
+  calendarConfig CalendarConfig?
+
+  @@index([slug])
+}
+
+model User {
+  id                        String     @id @default(cuid())
+  email                     String     @unique
+  password                  String // Hashed
+  firstName                 String
+  lastName                  String
+  role                      UserRole
+  status                    UserStatus @default(ACTIVE)
+  avatarUrl                 String?
+  phone                     String?
+  timezone                  String     @default("Europe/Paris")
+  emailVerified             Boolean    @default(false)
+  verificationCode          String? // Code de vérification à 6 chiffres
+  verificationCodeExpiresAt DateTime?
+  createdAt                 DateTime   @default(now())
+  updatedAt                 DateTime   @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Closer specific
+  closerSettings CloserSettings?
+
+  // Activities
+  assignedLeads         Lead[]            @relation("AssignedCloser")
+  assignedLeadsAsSetter Lead[]            @relation("AssignedSetter")
+  assignedAppointments  Appointment[]     @relation("AssignedCloser")
+  createdDeals          Deal[]
+  notifications         Notification[]
+  callParticipants      CallParticipant[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([role])
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  email          String
+  firstName      String? // Prénom (optionnel, peut être renseigné lors de l'invitation)
+  lastName       String? // Nom (optionnel, peut être renseigné lors de l'invitation)
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           UserRole // MANAGER, CLOSER, SETTER (pas ADMIN)
+  status         InvitationStatus @default(INVITED)
+  token          String           @unique
+  expiresAt      DateTime?
+  invitedBy      String? // ID de l'ADMIN qui a invité
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([email])
+  @@index([organizationId])
+  @@index([token])
+  @@index([status])
+}
+
+model CloserSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Scheduling
+  availabilityJson      String? // JSON avec créneaux disponibles
+  maxAppointmentsPerDay Int     @default(5)
+  roundRobinEnabled     Boolean @default(true)
+
+  // Performance
+  closingRate  Float? @default(0)
+  totalDeals   Int    @default(0)
+  totalRevenue Float  @default(0)
+
+  // IA Preferences
+  preferredSectors String[] // Secteurs préférés pour attribution
+  minLeadScore     Int      @default(70) // Score minimum pour attribution
+
+  // Display
+  pseudonyme String? // Pseudonyme affiché aux prospects
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrganizationSettings {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Pricing & Billing
+  subscriptionPlan String  @default("solo") // solo, pro, business
+  monthlyPrice     Float   @default(97)
+  billingEmail     String?
+  billingAddress   String? // JSON avec adresse complète
+
+  // Features & Quotas
+  maxUsers                Int     @default(3)
+  maxForms                Int     @default(5)
+  maxLeadsPerMonth        Int     @default(500)
+  maxAppointmentsPerMonth Int     @default(100)
+  maxSmsPerMonth          Int     @default(100)
+  aiEnabled               Boolean @default(true)
+  whatsappEnabled         Boolean @default(false)
+  smsEnabled              Boolean @default(true)
+
+  // KLOZD Call (Native Video)
+  callRecordingEnabled Boolean @default(true) // Enregistrement des appels activé
+
+  // Branding
+  primaryColor String  @default("#000000")
+  logoUrl      String?
+  customDomain String?
+
+  // IA Configuration
+  qualificationThreshold Int     @default(70) // Seuil de qualification
+  scoringWeightsJson     String? // JSON avec poids de scoring par champ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// FORMS & QUALIFICATION
+// ============================================
+
+enum FormStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model Form {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  status      FormStatus @default(DRAFT)
+  slug        String     @unique
+
+  // Qualification rules
+  qualificationRulesJson  String? // JSON avec règles de qualification
+  minScore                Int     @default(70) // Score minimum pour qualification
+  disqualificationMessage String?
+
+  // Redirects
+  qualifiedRedirectUrl    String?
+  disqualifiedRedirectUrl String?
+
+  // Settings
+  captureAbandons  Boolean @default(true)
+  abandonmentDelay Int     @default(30) // secondes
+
+  // Styling & Branding
+  backgroundColor    String? // Couleur de fond du formulaire
+  textColor          String? // Couleur du texte principal
+  primaryButtonColor String? // Couleur du bouton principal
+  fontFamily         String? // Police de caractères
+  borderRadius       String? // Rayon des bordures (ex: "8px", "rounded-lg")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  formFields  FormField[]
+  submissions FormSubmission[]
+  abandons    FormAbandon[]
+  leads       Lead[]
+  sites       Site[] // Sites qui utilisent ce formulaire
+
+  @@index([organizationId])
+  @@index([slug])
+}
+
+// ============================================
+// SITES (LANDING PAGES)
+// ============================================
+
+enum SiteStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model Site {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  status      SiteStatus @default(DRAFT)
+  slug        String     @unique // URL slug pour accéder au site public
+
+  // Contenu de la landing page (JSON)
+  contentJson String // JSON avec la structure de la page (sections, textes, images, formulaires)
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+
+  // Styling
+  backgroundColor    String?
+  textColor          String?
+  primaryButtonColor String?
+  fontFamily         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  formId String? // Formulaire intégré dans la page
+  form   Form?   @relation(fields: [formId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([slug])
+  @@index([formId])
+}
+
+model FormField {
+  id     String @id @default(cuid())
+  formId String
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  label    String
+  type     String // text, email, number, select, radio, checkbox
+  required Boolean @default(false)
+  order    Int
+
+  // Scoring
+  scoringRulesJson String? // JSON avec règles de scoring pour ce champ
+
+  // Options (pour select, radio, checkbox)
+  optionsJson String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([formId])
+}
+
+// ============================================
+// LEADS & SUBMISSIONS
+// ============================================
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  DISQUALIFIED
+  APPOINTMENT_SCHEDULED
+  APPOINTMENT_COMPLETED
+  WON
+  LOST
+  ABANDONED
+}
+
+enum LeadSource {
+  FORM
+  MANUAL
+  IMPORT
+  ABANDON_RECOVERY
+}
+
+model Lead {
+  id        String     @id @default(cuid())
+  email     String
+  firstName String?
+  lastName  String?
+  phone     String?
+  company   String?
+  status    LeadStatus @default(NEW)
+  source    LeadSource @default(FORM)
+
+  // Qualification
+  qualificationScore     Int? // Score de qualification (0-100)
+  qualifiedAt            DateTime?
+  disqualifiedAt         DateTime?
+  disqualificationReason String?
+
+  // Budget & Info
+  budget  Float?
+  sector  String?
+  urgency String? // low, medium, high
+  notes   String?
+
+  // Attribution
+  assignedCloserId String?
+  assignedCloser   User?   @relation("AssignedCloser", fields: [assignedCloserId], references: [id])
+
+  // Setter (si applicable)
+  assignedSetterId String?
+  assignedSetter   User?   @relation("AssignedSetter", fields: [assignedSetterId], references: [id])
+
+  // IA Prediction
+  closingProbability Float? // Probabilité de closing (0-100)
+  predictedValue     Float? // Valeur prédite du deal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  formId String?
+  form   Form?   @relation(fields: [formId], references: [id], onDelete: SetNull)
+
+  submissions  FormSubmission[]
+  appointments Appointment[]
+  deals        Deal[]
+  abandons     FormAbandon[]
+  aiPrediction AIPrediction?
+  Call         Call[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([status])
+  @@index([assignedCloserId])
+  @@index([qualificationScore])
+}
+
+model FormSubmission {
+  id     String @id @default(cuid())
+  formId String
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Données du formulaire (JSON)
+  dataJson String // JSON avec toutes les réponses
+
+  // Scoring
+  score     Int? // Score calculé
+  qualified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([formId])
+  @@index([leadId])
+}
+
+model FormAbandon {
+  id     String @id @default(cuid())
+  formId String
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  email                String?
+  dataJson             String? // Données partiellement remplies
+  completionPercentage Int?    @default(0) // Pourcentage de complétion (0-100)
+
+  // Récupération
+  recovered   Boolean   @default(false)
+  recoveredAt DateTime?
+
+  // Séquence de récupération
+  recoveryEmailsSent  Int       @default(0)
+  lastRecoveryEmailAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([formId])
+  @@index([leadId])
+  @@index([recovered])
+}
+
+// ============================================
+// APPOINTMENTS & SCHEDULING
+// ============================================
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+  RESCHEDULED
+}
+
+model Appointment {
+  id     String @id @default(cuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  assignedCloserId String
+  assignedCloser   User   @relation("AssignedCloser", fields: [assignedCloserId], references: [id])
+
+  scheduledAt DateTime
+  duration    Int               @default(30) // minutes
+  status      AppointmentStatus @default(SCHEDULED)
+
+  // Visio
+  visioUrl       String?
+  visioMeetingId String?
+  visioProvider  String? // zoom, google-meet, custom
+
+  // Confirmations
+  confirmationSent Boolean   @default(false)
+  reminderSent     Boolean   @default(false)
+  lastReminderAt   DateTime?
+
+  // Notes
+  notes       String?
+  outcome     String? // won, lost, follow-up, rescheduled
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  call Call?
+
+  @@index([leadId])
+  @@index([assignedCloserId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+// ============================================
+// CALENDAR CONFIGURATION
+// ============================================
+
+enum AttributionMethod {
+  ROUND_ROBIN
+  AI_INTELLIGENT
+  MANUAL
+}
+
+model CalendarConfig {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Type d'événement (fixe)
+  eventType String @default("Appel de closing")
+
+  // Durée
+  callDuration Int @default(30) // minutes
+  bufferBefore Int @default(5) // minutes
+  bufferAfter  Int @default(5) // minutes
+
+  // Disponibilités par jour (JSON)
+  // Format: { "monday": [{ start: "09:00", end: "12:00" }, { start: "14:00", end: "18:00" }], ... }
+  availabilityJson String @default("{}")
+
+  // Closers assignés (JSON array of user IDs)
+  assignedClosersJson String @default("[]")
+
+  // Méthode d'attribution
+  attributionMethod AttributionMethod @default(AI_INTELLIGENT)
+
+  // Confirmations
+  emailConfirmationImmediate Boolean @default(true)
+  emailReminder24h           Boolean @default(true)
+  emailReminder1h            Boolean @default(true)
+  smsReminder1h              Boolean @default(false)
+
+  // Google Calendar integration (Phase 2)
+  googleCalendarEnabled Boolean @default(false)
+  googleCalendarId      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+// ============================================
+// CALLS & VIDEO CONFERENCING
+// ============================================
+
+enum CallStatus {
+  PENDING
+  ONGOING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model Call {
+  id             String  @id @default(cuid())
+  organizationId String
+  appointmentId  String  @unique
+  leadId         String?
+
+  roomName String // identifiant de room côté SFU (LiveKit)
+  status   CallStatus @default(PENDING)
+
+  startedAt       DateTime?
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  recordingUrl  String? // URL finale de l'enregistrement (Object Storage)
+  recordingData Json? // métadonnées brutes du provider (LiveKit, etc.)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointment  Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  participants CallParticipant[]
+
+  @@index([organizationId])
+  @@index([appointmentId])
+  @@index([leadId])
+  @@index([roomName])
+}
+
+model CallParticipant {
+  id          String    @id @default(cuid())
+  callId      String
+  userId      String?
+  role        UserRole? // ADMIN, MANAGER, CLOSER, SETTER, ou null pour guest
+  displayName String?
+
+  joinedAt     DateTime?
+  leftAt       DateTime?
+  totalSeconds Int?
+
+  isHost  Boolean @default(false) // ex: closer ou ADMIN côté org
+  isGuest Boolean @default(false)
+
+  // Relations
+  call Call  @relation(fields: [callId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([callId])
+  @@index([userId])
+}
+
+// ============================================
+// DEALS & PIPELINE
+// ============================================
+
+enum DealStage {
+  QUALIFIED
+  APPOINTMENT_SCHEDULED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum DealStatus {
+  ACTIVE
+  WON
+  LOST
+  ARCHIVED
+}
+
+model Deal {
+  id     String @id @default(cuid())
+  leadId String
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  // Deal Info
+  title    String
+  value    Float
+  currency String     @default("EUR")
+  stage    DealStage  @default(QUALIFIED)
+  status   DealStatus @default(ACTIVE)
+
+  // Dates
+  expectedCloseDate DateTime?
+  closedAt          DateTime?
+
+  // IA
+  closingProbability Float? // Probabilité de closing (0-100)
+
+  // Notes
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([status])
+  @@index([stage])
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+enum NotificationType {
+  EMAIL
+  SMS
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  DELIVERED
+  READ
+}
+
+model Notification {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  status  NotificationStatus @default(PENDING)
+  title   String
+  message String
+
+  // Recipient (si pas user)
+  recipientEmail String?
+  recipientPhone String?
+
+  // Metadata
+  metadataJson String? // JSON avec données supplémentaires
+
+  sentAt    DateTime?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+
+// ============================================
+// AI PREDICTIONS & SCORING
+// ============================================
+
+model AIPrediction {
+  id     String @id @default(cuid())
+  leadId String @unique
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  // Predictions
+  closingProbability Float // 0-100
+  predictedValue     Float?
+  confidence         Float // 0-100
+
+  // Factors (JSON avec facteurs influençant la prédiction)
+  factorsJson String?
+
+  // Model info
+  modelVersion String   @default("1.0")
+  predictedAt  DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([leadId])
+  @@index([closingProbability])
+}

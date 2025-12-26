@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a; /* Slate 900 - Texte plus sombre et professionnel */
+  /* Couleur de marque - Orange KLOZD */
+  --brand-orange: #f9952a; /* Orange principal de la marque */
+  --brand-orange-light: #ffb347; /* Orange clair */
+  --brand-orange-dark: #d87a0f; /* Orange foncé */
+  --brand-orange-50: #fff7ed;
+  --brand-orange-100: #ffedd5;
+  --brand-orange-200: #fed7aa;
+  --brand-orange-300: #fdba74;
+  --brand-orange-400: #fb923c;
+  --brand-orange-500: #f9952a;
+  --brand-orange-600: #ea580c;
+  --brand-orange-700: #c2410c;
+  /* Palette professionnelle - Bleu entreprise */
+  --brand-primary: #2563eb; /* Blue 600 - Professionnel et fiable */
+  --brand-primary-light: #3b82f6; /* Blue 500 */
+  --brand-primary-dark: #1d4ed8; /* Blue 700 */
+  --brand-secondary: #64748b; /* Slate 500 - Gris professionnel */
+  --brand-accent: #0ea5e9; /* Sky 500 - Accent moderne */
+  /* Couleurs d'état */
+  --success: #10b981; /* Green 500 */
+  --warning: #f59e0b; /* Amber 500 */
+  --error: #ef4444; /* Red 500 */
+  --info: #3b82f6; /* Blue 500 */
+  /* Rétrocompatibilité */
+  --brand-purple: #64748b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-yellow: var(--brand-yellow);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-orange-light: var(--brand-orange-light);
+  --color-brand-orange-dark: var(--brand-orange-dark);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-purple-light: var(--brand-purple-light);
+  --color-brand-purple-dark: var(--brand-purple-dark);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: #f9fafb;
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+/* Motifs subtils en arrière-plan - Style professionnel sobre */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at 0% 0%, rgba(37, 99, 235, 0.02) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 100%, rgba(100, 116, 139, 0.015) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Assurer que le contenu est au-dessus des motifs */
+#__next,
+main,
+header {
+  position: relative;
+  z-index: 1;
+}
+
+/* Masquer la scrollbar pour la navigation */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Animations professionnelles pour le dashboard */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+    opacity: 0.3;
+  }
+  33% {
+    transform: translateY(-20px) translateX(10px) scale(1.05);
+    opacity: 0.4;
+  }
+  66% {
+    transform: translateY(10px) translateX(-10px) scale(0.95);
+    opacity: 0.35;
+  }
+}
+
+@keyframes float-delayed {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+    opacity: 0.2;
+  }
+  33% {
+    transform: translateY(15px) translateX(-15px) scale(1.08);
+    opacity: 0.3;
+  }
+  66% {
+    transform: translateY(-15px) translateX(15px) scale(0.92);
+    opacity: 0.25;
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-30px) translateX(20px) scale(1.1);
+    opacity: 0.35;
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.05;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.08;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes pulse-slow-delayed {
+  0%, 100% {
+    opacity: 0.05;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.08;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes line-draw {
+  0% {
+    stroke-dasharray: 0 2000;
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    stroke-dasharray: 2000 0;
+    opacity: 0;
+  }
+}
+
+@keyframes line-draw-delayed {
+  0% {
+    stroke-dasharray: 0 2000;
+    opacity: 0;
+  }
+  25% {
+    opacity: 0;
+  }
+  75% {
+    opacity: 0.3;
+  }
+  100% {
+    stroke-dasharray: 2000 0;
+    opacity: 0;
+  }
+}
