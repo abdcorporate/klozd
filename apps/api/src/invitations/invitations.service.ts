@@ -95,15 +95,21 @@ export class InvitationsService {
 
     // Envoyer l'email d'invitation
     try {
-      await this.notificationsService.sendInvitationEmail(
+      const emailSent = await this.notificationsService.sendInvitationEmail(
         email,
         token,
         invitation.organization.name,
         firstName || 'Utilisateur',
         lastName || '',
       );
+      if (emailSent) {
+        console.log(`✅ Email d'invitation envoyé avec succès à ${email}`);
+      } else {
+        console.error(`❌ ÉCHEC de l'envoi de l'email d'invitation à ${email} - Vérifiez les logs pour plus de détails`);
+      }
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de l\'email d\'invitation:', error);
+      console.error('❌ Erreur lors de l\'envoi de l\'email d\'invitation:', error);
+      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
       // On continue quand même, l'invitation est créée
     }
 
@@ -338,16 +344,21 @@ export class InvitationsService {
 
     // Renvoyer l'email d'invitation
     try {
-      await this.notificationsService.sendInvitationEmail(
+      const emailSent = await this.notificationsService.sendInvitationEmail(
         invitation.email,
         newToken,
         invitation.organization.name,
         invitation.firstName || 'Utilisateur',
         invitation.lastName || '',
       );
-      console.log(`✅ Invitation renvoyée à ${invitation.email}`);
+      if (emailSent) {
+        console.log(`✅ Email d'invitation renvoyé avec succès à ${invitation.email}`);
+      } else {
+        console.error(`❌ ÉCHEC du renvoi de l'email d'invitation à ${invitation.email} - Vérifiez les logs pour plus de détails`);
+      }
     } catch (error) {
-      console.error('Erreur lors de l\'envoi de l\'email d\'invitation:', error);
+      console.error('❌ Erreur lors du renvoi de l\'email d\'invitation:', error);
+      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
       // On continue quand même, l'invitation est mise à jour
     }
 

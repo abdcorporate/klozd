@@ -6,6 +6,8 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (data: {
     email: string;
@@ -23,6 +25,12 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      _hasHydrated: false,
+      setHasHydrated: (state: boolean) => {
+        set({
+          _hasHydrated: state,
+        });
+      },
 
       login: async (email: string, password: string) => {
         try {
@@ -42,6 +50,12 @@ export const useAuthStore = create<AuthState>()(
           });
         } catch (error: any) {
           console.error('Erreur dans login store:', error);
+          // Extraire le message d'erreur de l'API si disponible
+          if (error.response?.data?.message) {
+            const apiError = new Error(error.response.data.message);
+            (apiError as any).response = error.response;
+            throw apiError;
+          }
           throw error;
         }
       },
@@ -90,7 +104,15 @@ export const useAuthStore = create<AuthState>()(
         token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     },
   ),
 );
 
+// Hook pour vérifier si le store est hydraté
+export const useAuthHydrated = () => {
+  const store = useAuthStore();
+  return store._hasHydrated;
+};

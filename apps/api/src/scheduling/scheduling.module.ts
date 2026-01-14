@@ -10,10 +10,12 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AiModule } from '../ai/ai.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CalendarConfigModule } from '../calendar-config/calendar-config.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     PrismaModule,
+    CommonModule,
     AiModule,
     NotificationsModule,
     CalendarConfigModule,

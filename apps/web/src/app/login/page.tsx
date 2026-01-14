@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,19 +17,42 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { login } = useAuthStore();
+  const { login, isAuthenticated, user } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [verifiedSuccess, setVerifiedSuccess] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const redirectChecked = useRef(false);
 
   useEffect(() => {
-    if (searchParams.get('verified') === 'true') {
+    setMounted(true);
+  }, []);
+
+  // Vérifier le paramètre verified dans l'URL (une seule fois)
+  useEffect(() => {
+    if (!mounted || typeof window === 'undefined') return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('verified') === 'true') {
       setVerifiedSuccess(true);
-      // Supprimer le paramètre de l'URL
-      router.replace('/login', { scroll: false });
+      window.history.replaceState({}, '', '/login');
     }
-  }, [searchParams, router]);
+  }, [mounted]);
+
+  // Rediriger si déjà authentifié (une seule fois)
+  useEffect(() => {
+    if (!mounted || redirectChecked.current) return;
+    
+    redirectChecked.current = true;
+    
+    const timer = setTimeout(() => {
+      if (isAuthenticated && user) {
+        router.replace('/dashboard');
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [mounted, isAuthenticated, user, router]);
 
   const {
     register,
@@ -43,12 +66,9 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       setError(null);
-      console.log('Tentative de connexion avec:', data.email);
       await login(data.email, data.password);
-      console.log('Connexion réussie, redirection...');
       router.push('/dashboard');
     } catch (err: any) {
-      console.error('Erreur de connexion:', err);
       let errorMessage = 'Erreur de connexion';
       
       if (err.isNetworkError || err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
@@ -65,14 +85,20 @@ export default function LoginPage() {
     }
   };
 
+  if (!mounted) {
+    return (
+      <AuthLayout>
+        <div className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-lg border border-gray-200">
+          <div className="text-center text-gray-500">Chargement...</div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   return (
     <AuthLayout>
       <form 
-        onSubmit={(e) => {
-          e.preventDefault();
-          console.log('Form submit déclenché');
-          handleSubmit(onSubmit)(e);
-        }} 
+        onSubmit={handleSubmit(onSubmit)} 
         className="mt-8 space-y-6 bg-white p-8 rounded-lg shadow-lg border border-gray-200"
       >
         <div>
@@ -145,5 +171,3 @@ export default function LoginPage() {
     </AuthLayout>
   );
 }
-
-

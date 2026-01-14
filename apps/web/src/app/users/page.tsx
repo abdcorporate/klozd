@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { usersApi, invitationsApi } from '@/lib/api';
 import { AppLayout } from '@/components/layout/app-layout';
@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { useCursorPagination } from '@/lib/pagination/useCursorPagination';
 
 interface User {
   id: string;
@@ -25,13 +26,14 @@ interface User {
   };
 }
 
-export default function UsersPage() {
+function UsersPageContent() {
   const { user, isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const [users, setUsers] = useState<User[]>([]);
+  const pagination = useCursorPagination<User>();
+  const { items: users, pageInfo, loading, error: paginationError, limit, cursor, sortBy, sortOrder, q, setQuery, setSort, nextPage, setLoading, setError, setItems, setPageInfo } = pagination;
   const [invitations, setInvitations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   // Rôles que l'utilisateur peut inviter selon les permissions (mémorisé)
   const availableRoles = useMemo(() => {
     if (user?.role === 'ADMIN') {
@@ -49,14 +51,20 @@ export default function UsersPage() {
   // Rôle par défaut : premier rôle disponible
   const defaultRole = availableRoles.length > 0 ? availableRoles[0] : 'CLOSER';
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    password?: string;
+  }>({
     email: '',
     firstName: '',
     lastName: '',
     role: defaultRole,
+    password: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -73,34 +81,65 @@ export default function UsersPage() {
     return statusMap[status] || status;
   };
 
-  // Fonction fetchData mémorisée pour éviter les re-créations
-  const fetchData = useCallback(async () => {
-    try {
-      console.log('[UsersPage] Récupération des utilisateurs pour:', user?.role);
-      const usersResponse = await usersApi.getAll();
-      
-      console.log('[UsersPage] Utilisateurs reçus:', usersResponse.data?.length || 0);
-      console.log('[UsersPage] Données:', usersResponse.data);
-      setUsers(usersResponse.data || []);
-      
-        // Récupérer les invitations pour ADMIN, MANAGER et SUPER_ADMIN
-        if (user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN') {
-          try {
-            const invitationsResponse = await invitationsApi.getAll();
-            setInvitations(invitationsResponse.data || []);
-          } catch (invError) {
-            console.error('Error fetching invitations:', invError);
-            // Ne pas bloquer l'affichage si les invitations échouent
-            setInvitations([]);
-          }
+  // Fetch users with pagination
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const fetchUsers = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await usersApi.getAll({
+          limit,
+          cursor: cursor || undefined,
+          sortBy,
+          sortOrder,
+          q: q || undefined,
+        });
+        
+        // Handle new paginated response format: { items, pageInfo }
+        if (response.data.items && response.data.pageInfo) {
+          setItems(response.data.items);
+          setPageInfo(response.data.pageInfo);
+        } else {
+          // Fallback for old format
+          const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+          setItems(items);
+          setPageInfo({
+            limit: items.length,
+            nextCursor: null,
+            hasNextPage: false,
+          });
         }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      setError('Erreur lors du chargement des utilisateurs');
-    } finally {
-      setLoading(false);
+      } catch (err: any) {
+        console.error('Error fetching users:', err);
+        setError(err);
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [limit, cursor, sortBy, sortOrder, q, isAuthenticated, user]);
+
+  // Fetch invitations (only once, not paginated)
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    if (user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN') {
+      const fetchInvitations = async () => {
+        try {
+          const invitationsResponse = await invitationsApi.getAll();
+          setInvitations(invitationsResponse.data || []);
+        } catch (invError) {
+          console.error('Error fetching invitations:', invError);
+          setInvitations([]);
+        }
+      };
+      fetchInvitations();
     }
-  }, [user?.role]);
+  }, [user?.role, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -113,9 +152,7 @@ export default function UsersPage() {
       router.push('/dashboard');
       return;
     }
-
-    fetchData();
-  }, [isAuthenticated, user?.role, router, fetchData]);
+  }, [isAuthenticated, user?.role, router]);
 
   // S'assurer que le rôle sélectionné est toujours valide (séparé pour éviter les boucles)
   useEffect(() => {
@@ -135,6 +172,7 @@ export default function UsersPage() {
         firstName: editingUser.firstName,
         lastName: editingUser.lastName,
         role: editingUser.role,
+        password: '',
       });
     }
   }, [showEditModal, editingUser]);
@@ -164,18 +202,31 @@ export default function UsersPage() {
   const handleDeleteUser = async (userId: string) => {
     try {
       setDeletingUserId(userId);
-      setError(null);
+      setFormError(null);
       
       await usersApi.delete(userId);
       
-      // Recharger la liste
-      const response = await usersApi.getAll();
-      setUsers(response.data);
+      // Recharger la liste avec les mêmes paramètres
+      const response = await usersApi.getAll({
+        limit,
+        cursor: cursor || undefined,
+        sortBy,
+        sortOrder,
+        q: q || undefined,
+      });
+      
+      if (response.data.items && response.data.pageInfo) {
+        setItems(response.data.items);
+        setPageInfo(response.data.pageInfo);
+      } else {
+        const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        setItems(items);
+      }
       
       setShowDeleteConfirm(null);
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || 'Erreur lors de la suppression de l\'utilisateur';
-      setError(errorMessage);
+      setFormError(errorMessage);
     } finally {
       setDeletingUserId(null);
     }
@@ -184,11 +235,11 @@ export default function UsersPage() {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    setError(null);
+    setFormError(null);
 
     // Validation frontend : s'assurer que le rôle est autorisé
     if (!availableRoles.includes(formData.role)) {
-      setError(`Vous n'avez pas la permission de modifier un utilisateur avec le rôle ${formData.role}`);
+      setFormError(`Vous n'avez pas la permission de modifier un utilisateur avec le rôle ${formData.role}`);
       return;
     }
 
@@ -200,14 +251,29 @@ export default function UsersPage() {
       if (formData.firstName !== editingUser.firstName) updateData.firstName = formData.firstName;
       if (formData.lastName !== editingUser.lastName) updateData.lastName = formData.lastName;
       if (formData.role !== editingUser.role) updateData.role = formData.role;
-      // Le mot de passe peut être modifié séparément si nécessaire
-      // (pour l'instant, on ne modifie pas le mot de passe via ce formulaire)
+      // Inclure le mot de passe seulement s'il est défini et non vide
+      if (formData.password && formData.password.trim().length > 0) {
+        updateData.password = formData.password;
+      }
 
       await usersApi.update(editingUser.id, updateData);
       
-      // Recharger la liste
-      const response = await usersApi.getAll();
-      setUsers(response.data);
+      // Recharger la liste avec les mêmes paramètres
+      const response = await usersApi.getAll({
+        limit,
+        cursor: cursor || undefined,
+        sortBy,
+        sortOrder,
+        q: q || undefined,
+      });
+      
+      if (response.data.items && response.data.pageInfo) {
+        setItems(response.data.items);
+        setPageInfo(response.data.pageInfo);
+      } else {
+        const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        setItems(items);
+      }
       
       // Réinitialiser
       setShowEditModal(false);
@@ -217,10 +283,11 @@ export default function UsersPage() {
         firstName: '',
         lastName: '',
         role: defaultRole,
+        password: '',
       });
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || 'Erreur lors de la mise à jour de l\'utilisateur';
-      setError(errorMessage);
+      setFormError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -228,11 +295,11 @@ export default function UsersPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setFormError(null);
 
     // Validation frontend : s'assurer que le rôle est autorisé
     if (!availableRoles.includes(formData.role)) {
-      setError(`Vous n'avez pas la permission d'inviter un utilisateur avec le rôle ${formData.role}`);
+      setFormError(`Vous n'avez pas la permission d'inviter un utilisateur avec le rôle ${formData.role}`);
       return;
     }
 
@@ -246,8 +313,32 @@ export default function UsersPage() {
         lastName: formData.lastName,
       });
       
-      // Recharger toutes les données (utilisateurs et invitations)
-      await fetchData();
+      // Recharger les utilisateurs avec les mêmes paramètres
+      const response = await usersApi.getAll({
+        limit,
+        cursor: cursor || undefined,
+        sortBy,
+        sortOrder,
+        q: q || undefined,
+      });
+      
+      if (response.data.items && response.data.pageInfo) {
+        setItems(response.data.items);
+        setPageInfo(response.data.pageInfo);
+      } else {
+        const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        setItems(items);
+      }
+      
+      // Recharger les invitations
+      if (user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'SUPER_ADMIN') {
+        try {
+          const invitationsResponse = await invitationsApi.getAll();
+          setInvitations(invitationsResponse.data || []);
+        } catch (invError) {
+          console.error('Error fetching invitations:', invError);
+        }
+      }
       
       // Réinitialiser le formulaire avec le premier rôle disponible
       setFormData({
@@ -255,6 +346,7 @@ export default function UsersPage() {
         firstName: '',
         lastName: '',
         role: availableRoles.length > 0 ? availableRoles[0] : 'CLOSER',
+        password: '',
       });
       setShowCreateModal(false);
       
@@ -262,11 +354,11 @@ export default function UsersPage() {
       alert('Invitation envoyée avec succès ! L\'utilisateur recevra un email pour créer son compte.');
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || err.message || 'Erreur lors de l\'envoi de l\'invitation';
-      setError(errorMessage);
+      setFormError(errorMessage);
       
       // Si c'est une erreur de quota, afficher un message plus explicite
       if (errorMessage.includes('quota') || errorMessage.includes('Quota')) {
-        setError(`${errorMessage}. Veuillez passer à un plan supérieur dans les paramètres.`);
+        setFormError(`${errorMessage}. Veuillez passer à un plan supérieur dans les paramètres.`);
       }
     } finally {
       setSubmitting(false);
@@ -352,9 +444,9 @@ export default function UsersPage() {
           </div>
         )}
 
-        {error && (
+        {(paginationError || formError) && (
           <div className="p-4 bg-slate-100 border border-slate-300 text-slate-800 rounded">
-            {error}
+            {paginationError?.message || formError}
           </div>
         )}
 
@@ -557,10 +649,12 @@ export default function UsersPage() {
                               onClick={async () => {
                                 try {
                                   await invitationsApi.resend(invitation.id);
-                                  await fetchData();
+                                  // Recharger les invitations
+                                  const invitationsResponse = await invitationsApi.getAll();
+                                  setInvitations(invitationsResponse.data || []);
                                   alert('Invitation renvoyée avec succès !');
                                 } catch (err: any) {
-                                  setError(err.response?.data?.message || 'Erreur lors du renvoi de l\'invitation');
+                                  setFormError(err.response?.data?.message || 'Erreur lors du renvoi de l\'invitation');
                                 }
                               }}
                               className="px-3 py-1 text-sm rounded-md transition-colors"
@@ -581,9 +675,11 @@ export default function UsersPage() {
                                 if (confirm('Êtes-vous sûr de vouloir annuler cette invitation ?')) {
                                   try {
                                     await invitationsApi.cancel(invitation.id);
-                                    await fetchData();
+                                    // Recharger les invitations
+                                    const invitationsResponse = await invitationsApi.getAll();
+                                    setInvitations(invitationsResponse.data || []);
                                   } catch (err: any) {
-                                    setError(err.response?.data?.message || 'Erreur lors de l\'annulation de l\'invitation');
+                                    setFormError(err.response?.data?.message || 'Erreur lors de l\'annulation de l\'invitation');
                                   }
                                 }
                               }}
@@ -680,7 +776,7 @@ export default function UsersPage() {
                   <input
                     type="password"
                     minLength={8}
-                    value={formData.password}
+                    value={formData.password || ''}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full px-3 py-2 bg-white border border-slate-300 text-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 placeholder-slate-400"
                     placeholder="Laisser vide pour ne pas changer"
@@ -898,3 +994,16 @@ export default function UsersPage() {
   );
 }
 
+export default function UsersPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Chargement...</div>
+        </div>
+      </AppLayout>
+    }>
+      <UsersPageContent />
+    </Suspense>
+  );
+}

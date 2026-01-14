@@ -3,6 +3,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AttributionService } from './services/attribution.service';
 import { VisioService } from './services/visio.service';
 import { CreateAppointmentDto, UpdateAppointmentDto } from './dto/scheduling.dto';
+import {
+  PaginationQueryDto,
+  buildOrderBy,
+  buildCursorWhere,
+  extractCursor,
+  PaginatedResponse,
+} from '../common/pagination';
 
 @Injectable()
 export class SchedulingService {
@@ -109,10 +116,17 @@ export class SchedulingService {
     organizationId: string,
     userId: string,
     userRole: string,
+    pagination: PaginationQueryDto,
     filters?: any,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  ): Promise<PaginatedResponse<any>> {
+    const {
+      limit = 25,
+      cursor,
+      sortBy = 'scheduledAt',
+      sortOrder = 'asc',
+      q,
+    } = pagination;
+
     // Construire les filtres selon le rôle
     let where: any = {
       lead: {
@@ -120,6 +134,15 @@ export class SchedulingService {
       },
       ...filters,
     };
+
+    // Recherche textuelle (q)
+    if (q) {
+      where.OR = [
+        { lead: { email: { contains: q, mode: 'insensitive' } } },
+        { lead: { firstName: { contains: q, mode: 'insensitive' } } },
+        { lead: { lastName: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
 
     // ADMIN : Tous les RDV (pas de filtre supplémentaire)
     if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
@@ -143,13 +166,27 @@ export class SchedulingService {
       const userIds = closersAndSetters.map((u) => u.id);
 
       // Filtrer les RDV : ceux dont le lead est assigné à un closer/setter de l'organisation
-      where.lead = {
-        organizationId,
-        OR: [
-          { assignedCloserId: { in: userIds } },
-          { assignedSetterId: { in: userIds } },
-        ],
+      const roleFilter = {
+        lead: {
+          organizationId,
+          OR: [
+            { assignedCloserId: { in: userIds } },
+            { assignedSetterId: { in: userIds } },
+          ],
+        },
       };
+
+      // Combiner avec le filtre de recherche si présent
+      if (where.OR) {
+        where = {
+          AND: [
+            { OR: where.OR },
+            roleFilter,
+          ],
+        };
+      } else {
+        where = { ...where, ...roleFilter };
+      }
     }
     // Closer : Seulement ses RDV
     else if (userRole === 'CLOSER') {
@@ -166,44 +203,52 @@ export class SchedulingService {
       where.id = 'none'; // Aucun résultat
     }
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.appointment.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          lead: true,
-          assignedCloser: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
+    // Cursor pagination
+    const cursorWhere = buildCursorWhere(cursor, sortBy, sortOrder);
+    if (cursorWhere) {
+      where = {
+        AND: [
+          where,
+          cursorWhere,
+        ],
+      };
+    }
+
+    // Ordering - pour appointments, on utilise scheduledAt par défaut
+    const defaultOrderBy = sortBy === 'scheduledAt'
+      ? { scheduledAt: sortOrder, id: sortOrder }
+      : { createdAt: 'desc', id: 'desc' };
+    const orderBy = buildOrderBy(sortBy, sortOrder, defaultOrderBy);
+
+    // Fetch one extra item to determine if there's a next page
+    const take = limit + 1;
+    const data = await this.prisma.appointment.findMany({
+      where,
+      take,
+      include: {
+        lead: true,
+        assignedCloser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
           },
         },
-        orderBy: {
-          scheduledAt: 'asc',
-        },
-      }),
-      this.prisma.appointment.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
       },
-    };
+      orderBy,
+    });
+
+    // Check if there's a next page
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, limit) : data;
+
+    // Extract cursor from last item
+    const nextCursor = items.length > 0
+      ? extractCursor(items[items.length - 1], sortBy)
+      : null;
+
+    return new PaginatedResponse(items, limit, nextCursor);
   }
 
   async findOne(id: string, organizationId: string) {

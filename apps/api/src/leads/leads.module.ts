@@ -9,10 +9,12 @@ import { FormsModule } from '../forms/forms.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { SchedulingModule } from '../scheduling/scheduling.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     PrismaModule,
+    CommonModule,
     FormsModule,
     NotificationsModule,
     SettingsModule,

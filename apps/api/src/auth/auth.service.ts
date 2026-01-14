@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BruteForceService } from './services/brute-force.service';
 
 @Injectable()
 export class AuthService {
@@ -12,6 +13,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private notificationsService: NotificationsService,
+    private bruteForceService: BruteForceService,
   ) {}
 
   async register(registerDto: RegisterDto & { confirmPassword?: string }) {
@@ -82,7 +84,7 @@ export class AuthService {
             lastName,
             role: 'ADMIN',
             status: 'ACTIVE',
-            emailVerified: true, // Les comptes créés via register sont automatiquement vérifiés
+            emailVerified: false, // Vérification OTP obligatoire - l'utilisateur doit vérifier son email
             verificationCode,
             verificationCodeExpiresAt,
           },
@@ -133,27 +135,21 @@ export class AuthService {
       console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
     }
 
-    // Générer le token JWT
-    const payload = { sub: user.id, email: user.email, role: user.role, organizationId: organization.id };
-    const accessToken = this.jwtService.sign(payload);
-
+    // Ne pas générer de token JWT si l'email n'est pas vérifié
+    // L'utilisateur doit d'abord vérifier son email avant de pouvoir se connecter
     return {
-      accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        organizationId: organization.id,
-        emailVerified: user.emailVerified,
-      },
-      message: 'Un email de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception.',
+      requiresVerification: true,
+      email: user.email,
+      message: 'Un email de vérification a été envoyé à votre adresse email. Veuillez vérifier votre boîte de réception et entrer le code à 6 chiffres pour activer votre compte.',
     };
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto, ip?: string) {
     const { email, password } = loginDto;
+
+    // Check brute-force protection BEFORE checking user existence
+    // This prevents email enumeration attacks
+    await this.bruteForceService.checkLocked(email, ip);
 
     // Trouver l'utilisateur
     const user = await this.prisma.user.findUnique({
@@ -163,15 +159,22 @@ export class AuthService {
       },
     });
 
+    // Always use the same error message to prevent email enumeration
+    const invalidCredentialsError = new UnauthorizedException('Email ou mot de passe incorrect');
+
     if (!user) {
-      throw new UnauthorizedException('Email ou mot de passe incorrect');
+      // Record failure even if user doesn't exist (to prevent enumeration)
+      await this.bruteForceService.recordFailure(email, ip);
+      throw invalidCredentialsError;
     }
 
     // Vérifier le mot de passe
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Email ou mot de passe incorrect');
+      // Record failure
+      await this.bruteForceService.recordFailure(email, ip);
+      throw invalidCredentialsError;
     }
 
     // Vérifier le statut
@@ -181,10 +184,14 @@ export class AuthService {
 
     // Vérifier si l'email est vérifié
     if (!user.emailVerified) {
+      // Don't record failure for unverified email (different error)
       throw new UnauthorizedException(
         'Votre email n\'a pas été vérifié. Veuillez vérifier votre boîte de réception et cliquer sur le lien de vérification. Si vous n\'avez pas reçu l\'email, vous pouvez en demander un nouveau.',
       );
     }
+
+    // Reset failures on successful login
+    await this.bruteForceService.resetFailures(email, ip);
 
     // Générer le token JWT
     const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId };

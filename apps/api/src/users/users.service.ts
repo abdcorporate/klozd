@@ -5,6 +5,13 @@ import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
 import { canCreateUserWithRole } from '../auth/permissions/permissions';
 import { PricingService } from '../settings/pricing.service';
+import {
+  PaginationQueryDto,
+  buildOrderBy,
+  buildCursorWhere,
+  extractCursor,
+  PaginatedResponse,
+} from '../common/pagination';
 
 @Injectable()
 export class UsersService {
@@ -78,72 +85,99 @@ export class UsersService {
     return user;
   }
 
-  async findAll(organizationId: string, creatorRole: UserRole, creatorId?: string) {
-    console.log(`[UsersService] findAll - organizationId: ${organizationId}, role: ${creatorRole}, creatorId: ${creatorId}`);
-    
+  async findAll(
+    organizationId: string,
+    creatorRole: UserRole,
+    pagination: PaginationQueryDto,
+    creatorId?: string,
+  ): Promise<PaginatedResponse<any>> {
+    const {
+      limit = 25,
+      cursor,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      q,
+    } = pagination;
+
+    let where: any = {};
+
     // SUPER_ADMIN voit tous les utilisateurs de toutes les organisations
     if (creatorRole === UserRole.SUPER_ADMIN) {
-      try {
-        const users = await this.prisma.user.findMany({
-          where: {},
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            status: true,
-            organizationId: true,
-            organization: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-              },
-            },
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
-        console.log(`[UsersService] Admin - Trouvé ${users.length} utilisateur(s)`);
-        return users;
-      } catch (error) {
-        console.error('[UsersService] Admin - Erreur lors de la requête:', error);
-        throw error;
+      // Pas de filtre d'organisation
+    }
+    // ADMIN voit tous les utilisateurs de son org
+    else if (creatorRole === UserRole.ADMIN) {
+      where.organizationId = organizationId;
+    }
+    // Manager : voir tous les utilisateurs de son organisation (sauf SUPER_ADMIN)
+    else if (creatorRole === UserRole.MANAGER && creatorId) {
+      where = {
+        organizationId,
+        role: {
+          not: 'SUPER_ADMIN',
+        },
+      };
+    }
+    else {
+      where.id = 'none'; // Aucun résultat
+    }
+
+    // Recherche textuelle (q)
+    if (q) {
+      const searchFilter = {
+        OR: [
+          { email: { contains: q, mode: 'insensitive' } },
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+        ],
+      };
+
+      if (where.id === 'none') {
+        where = searchFilter;
+      } else {
+        where = {
+          AND: [
+            where,
+            searchFilter,
+          ],
+        };
       }
     }
 
-    // ADMIN voit tous les utilisateurs de son org
-    if (creatorRole === UserRole.ADMIN) {
-      return this.prisma.user.findMany({
-        where: { organizationId },
-        select: {
+    // Cursor pagination
+    const cursorWhere = buildCursorWhere(cursor, sortBy, sortOrder);
+    if (cursorWhere) {
+      where = {
+        AND: [
+          where,
+          cursorWhere,
+        ],
+      };
+    }
+
+    // Ordering
+    const orderBy = buildOrderBy(sortBy, sortOrder, { createdAt: 'desc', id: 'desc' });
+
+    // Select fields based on role
+    const selectFields = creatorRole === UserRole.SUPER_ADMIN
+      ? {
           id: true,
           email: true,
           firstName: true,
           lastName: true,
           role: true,
           status: true,
-          createdAt: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-    }
-
-    // Manager : voir tous les utilisateurs de son organisation (sauf SUPER_ADMIN qui est super admin)
-    if (creatorRole === UserRole.MANAGER && creatorId) {
-      return this.prisma.user.findMany({
-        where: {
-          organizationId,
-          role: {
-            not: 'SUPER_ADMIN', // Les super admins sont super admins, pas dans les organisations clientes
+          organizationId: true,
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
           },
-        },
-        select: {
+          createdAt: true,
+        }
+      : {
           id: true,
           email: true,
           firstName: true,
@@ -151,14 +185,27 @@ export class UsersService {
           role: true,
           status: true,
           createdAt: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-    }
+        };
 
-    return [];
+    // Fetch one extra item to determine if there's a next page
+    const take = limit + 1;
+    const data = await this.prisma.user.findMany({
+      where,
+      take,
+      select: selectFields,
+      orderBy,
+    });
+
+    // Check if there's a next page
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, limit) : data;
+
+    // Extract cursor from last item
+    const nextCursor = items.length > 0
+      ? extractCursor(items[items.length - 1], sortBy)
+      : null;
+
+    return new PaginatedResponse(items, limit, nextCursor);
   }
 
   async findOne(id: string, organizationId: string, creatorRole?: UserRole) {

@@ -95,6 +95,8 @@ model User {
   @@index([organizationId])
   @@index([email])
   @@index([role])
+  @@index([organizationId, role])
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model Invitation {
@@ -234,6 +236,8 @@ model Form {
 
   @@index([organizationId])
   @@index([slug])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, status])
 }
 
 // ============================================
@@ -280,6 +284,8 @@ model Site {
   @@index([organizationId])
   @@index([slug])
   @@index([formId])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, status])
 }
 
 model FormField {
@@ -382,6 +388,8 @@ model Lead {
   @@index([status])
   @@index([assignedCloserId])
   @@index([qualificationScore])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, updatedAt(sort: Desc)])
 }
 
 model FormSubmission {
@@ -483,6 +491,8 @@ model Appointment {
   @@index([assignedCloserId])
   @@index([scheduledAt])
   @@index([status])
+  @@index([leadId, scheduledAt(sort: Asc)])
+  @@index([assignedCloserId, scheduledAt(sort: Asc)])
 }
 
 // ============================================
@@ -659,6 +669,9 @@ model Deal {
   @@index([createdById])
   @@index([status])
   @@index([stage])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, updatedAt(sort: Desc)])
+  @@index([organizationId, stage])
 }
 
 // ============================================
@@ -705,6 +718,8 @@ model Notification {
   @@index([userId])
   @@index([status])
   @@index([type])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, status])
 }
 
 // ============================================
@@ -731,4 +746,68 @@ model AIPrediction {
 
   @@index([leadId])
   @@index([closingProbability])
+}
+
+// ============================================
+// AUTH SECURITY
+// ============================================
+
+model AuthAttempt {
+  id            String    @id @default(cuid())
+  email         String
+  ip            String?
+  failuresCount Int       @default(0)
+  lockedUntil   DateTime?
+  lastAttemptAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([email, ip])
+  @@index([email])
+  @@index([ip])
+  @@index([lockedUntil])
+  @@map("auth_attempts")
+}
+
+// ============================================
+// IDEMPOTENCY
+// ============================================
+
+model IdempotencyRecord {
+  id               String   @id @default(cuid())
+  key              String // Idempotency-Key header value (UUID)
+  route            String // Route path (e.g., "/leads/forms/:formId/submit")
+  requestHash      String // Hash of request body for conflict detection
+  responseStatus   Int // HTTP status code of stored response
+  responseBodyJson String   @db.Text // JSON string of stored response
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime // TTL: 24 hours from creation
+  organizationId   String? // Optional: for org-scoped idempotency
+  ip               String? // Optional: IP address for logging
+
+  @@unique([key, route])
+  @@index([expiresAt])
+  @@index([organizationId])
+  @@map("idempotency_records")
+}
+
+// ============================================
+// BACKGROUND JOBS (DLQ)
+// ============================================
+
+model FailedJob {
+  id          String   @id @default(cuid())
+  queueName   String   // Nom de la queue (e.g., "notifications")
+  jobName     String   // Nom du job (e.g., "SEND_EMAIL")
+  jobData     String   @db.Text // JSON string des données du job
+  errorMessage String  @db.Text // Message d'erreur
+  jobId       String?  // ID du job dans BullMQ (optionnel)
+  attemptsMade Int     @default(0) // Nombre de tentatives
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([queueName])
+  @@index([jobName])
+  @@index([createdAt])
+  @@map("failed_jobs")
 }

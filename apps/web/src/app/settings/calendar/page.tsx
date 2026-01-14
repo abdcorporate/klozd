@@ -75,14 +75,18 @@ export default function CalendarConfigPage() {
       setConfig(configResponse.data);
       
       // Filtrer les closers actifs avec leurs settings
-      const activeClosers = closersResponse.data
-        .filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE')
-        .map((u: any) => ({
-          id: u.id,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          closerSettings: u.closerSettings || null,
-        }));
+      // Handle new paginated response format: { items, pageInfo }
+      const usersData = closersResponse.data.items || closersResponse.data || [];
+      const activeClosers = Array.isArray(usersData)
+        ? usersData
+            .filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE')
+            .map((u: any) => ({
+              id: u.id,
+              firstName: u.firstName,
+              lastName: u.lastName,
+              closerSettings: u.closerSettings || null,
+            }))
+        : [];
       setClosers(activeClosers);
     } catch (error) {
       console.error('Error fetching data:', error);

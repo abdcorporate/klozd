@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
@@ -17,7 +18,10 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Permission } from '../auth/permissions/permissions';
+import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 
+@ApiTags('Users')
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
@@ -32,16 +36,28 @@ export class UsersController {
   @Get()
   @Throttle({ default: { limit: 500, ttl: 60000 } }) // 500 requêtes par minute pour GET /users
   @RequirePermissions(Permission.VIEW_USERS)
-  async findAll(@CurrentUser() user: any) {
-    console.log('[UsersController] findAll - User:', { id: user.id, role: user.role, organizationId: user.organizationId });
-    try {
-      const result = await this.usersService.findAll(user.organizationId, user.role, user.id);
-      console.log('[UsersController] findAll - Résultat:', Array.isArray(result) ? `${result.length} utilisateurs` : result);
-      return result;
-    } catch (error) {
-      console.error('[UsersController] findAll - Erreur:', error);
-      throw error;
-    }
+  @ApiOperation({ summary: 'Récupérer la liste des utilisateurs avec pagination par curseur' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Nombre maximum d\'éléments (1-100, défaut: 25)' })
+  @ApiQuery({ name: 'cursor', required: false, type: String, description: 'Curseur de pagination (base64)' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Champ de tri (défaut: createdAt)' })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Ordre de tri (défaut: desc)' })
+  @ApiQuery({ name: 'q', required: false, type: String, description: 'Terme de recherche' })
+  @ApiResponse({ status: 200, description: 'Liste paginée des utilisateurs', type: PaginatedResponse })
+  async findAll(
+    @CurrentUser() user: any,
+    @Query() pagination: PaginationQueryDto,
+  ) {
+    // Extraire les filtres de pagination
+    const { limit, cursor, sortBy, sortOrder, q } = pagination;
+    const paginationDto: PaginationQueryDto = {
+      limit: limit ? Number(limit) : undefined,
+      cursor,
+      sortBy,
+      sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+      q,
+    };
+
+    return this.usersService.findAll(user.organizationId, user.role, paginationDto, user.id);
   }
 
   @Get(':id')

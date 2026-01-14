@@ -114,17 +114,20 @@ export default function AppointmentsPage() {
 
   const fetchAppointments = async () => {
     try {
-      const response = await schedulingApi.getAppointments();
+      setLoading(true);
+      const response = await schedulingApi.getAppointments({
+        limit: 100, // Get more appointments for calendar view
+        sortBy: 'scheduledAt',
+        sortOrder: 'asc',
+      });
       
-      // La réponse de l'API est paginée : { data: [...], meta: {...} }
-      const appointmentsData = response?.data?.data || response?.data || [];
-      
-      // S'assurer que c'est un tableau
-      if (Array.isArray(appointmentsData)) {
-        setAppointments(appointmentsData);
+      // Handle new paginated response format: { items, pageInfo }
+      if (response.data.items && response.data.pageInfo) {
+        setAppointments(response.data.items);
       } else {
-        console.warn('Unexpected response format:', response);
-        setAppointments([]);
+        // Fallback for old format
+        const appointmentsData = response?.data?.data || response?.data || [];
+        setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
       }
     } catch (error) {
       console.error('Error fetching appointments:', error);
@@ -145,14 +148,18 @@ export default function AppointmentsPage() {
       setConfig(configResponse.data);
       
       // Filtrer les closers actifs avec leurs settings
-      const activeClosers = closersResponse.data
-        .filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE')
-        .map((u: any) => ({
-          id: u.id,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          closerSettings: u.closerSettings || null,
-        }));
+      // Handle new paginated response format: { items, pageInfo }
+      const usersData = closersResponse.data.items || closersResponse.data || [];
+      const activeClosers = Array.isArray(usersData)
+        ? usersData
+            .filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE')
+            .map((u: any) => ({
+              id: u.id,
+              firstName: u.firstName,
+              lastName: u.lastName,
+              closerSettings: u.closerSettings || null,
+            }))
+        : [];
       setClosers(activeClosers);
     } catch (error) {
       console.error('Error fetching config:', error);
@@ -164,14 +171,18 @@ export default function AppointmentsPage() {
   const fetchAllClosers = async () => {
     try {
       const response = await usersApi.getAll();
-      const activeClosers = response.data
-        .filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE')
-        .map((u: any) => ({
-          id: u.id,
-          firstName: u.firstName,
-          lastName: u.lastName,
-          closerSettings: u.closerSettings || null,
-        }));
+      // Handle new paginated response format: { items, pageInfo }
+      const usersData = response.data.items || response.data || [];
+      const activeClosers = Array.isArray(usersData)
+        ? usersData
+            .filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE')
+            .map((u: any) => ({
+              id: u.id,
+              firstName: u.firstName,
+              lastName: u.lastName,
+              closerSettings: u.closerSettings || null,
+            }))
+        : [];
       setAllClosers(activeClosers);
     } catch (error) {
       console.error('Error fetching closers:', error);

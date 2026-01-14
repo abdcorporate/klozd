@@ -70,13 +70,24 @@ export default function FormsPage() {
       try {
         setLoading(true);
         const [formsResponse, sitesResponse] = await Promise.all([
-          formsApi.getAll().catch(() => ({ data: [] })),
+          formsApi.getAll({ limit: 100 }).catch(() => ({ data: { items: [], pageInfo: null } })),
           (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') 
-            ? sitesApi.getAll().catch(() => ({ data: [] }))
-            : Promise.resolve({ data: [] }),
+            ? sitesApi.getAll({ limit: 100 }).catch(() => ({ data: { items: [], pageInfo: null } }))
+            : Promise.resolve({ data: { items: [], pageInfo: null } }),
         ]);
-        setForms(formsResponse.data);
-        setSites(sitesResponse.data);
+        
+        // Handle new paginated response format
+        if (formsResponse.data.items) {
+          setForms(formsResponse.data.items);
+        } else {
+          setForms(Array.isArray(formsResponse.data) ? formsResponse.data : []);
+        }
+        
+        if (sitesResponse.data.items) {
+          setSites(sitesResponse.data.items);
+        } else {
+          setSites(Array.isArray(sitesResponse.data) ? sitesResponse.data : []);
+        }
       } catch (err: any) {
         setError(err.response?.data?.message || 'Erreur lors du chargement');
       } finally {

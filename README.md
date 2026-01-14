@@ -24,7 +24,7 @@ Plateforme SaaS CRM complète pour infopreneurs et équipes de closing, construi
 - [ ] Fichier `apps/api/.env` créé avec `DATABASE_URL` et `JWT_SECRET`
 - [ ] Fichier `apps/web/.env.local` créé avec `NEXT_PUBLIC_API_URL`
 - [ ] Client Prisma généré : `cd apps/api && pnpm prisma:generate`
-- [ ] Migrations appliquées : `cd apps/api && pnpm prisma:migrate dev --name init`
+- [ ] Migrations appliquées : `cd apps/api && pnpm prisma migrate dev --name init`
 
 ### 🎯 Une fois configuré
 

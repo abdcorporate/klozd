@@ -293,7 +293,9 @@ export default function PublicFormPage() {
         return;
       }
 
-      const response = await formsApi.submit(form.id, transformedData);
+      // Generate idempotency key for this submission
+      const idempotencyKey = crypto.randomUUID();
+      const response = await formsApi.submit(form.id, transformedData, idempotencyKey);
 
       // Extraire le leadId depuis la réponse
       const leadId = response.data.lead?.id || response.data.leadId;

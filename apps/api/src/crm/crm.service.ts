@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDealDto, UpdateDealDto } from './dto/crm.dto';
+import {
+  PaginationQueryDto,
+  buildOrderBy,
+  buildCursorWhere,
+  extractCursor,
+  PaginatedResponse,
+} from '../common/pagination';
 
 @Injectable()
 export class CrmService {
@@ -35,15 +42,32 @@ export class CrmService {
     organizationId: string,
     userId: string,
     userRole: string,
+    pagination: PaginationQueryDto,
     filters?: any,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  ): Promise<PaginatedResponse<any>> {
+    const {
+      limit = 25,
+      cursor,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      q,
+    } = pagination;
+
     // Construire les filtres selon le rôle
     let where: any = {
       organizationId,
       ...filters,
     };
+
+    // Recherche textuelle (q)
+    if (q) {
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { lead: { email: { contains: q, mode: 'insensitive' } } },
+        { lead: { firstName: { contains: q, mode: 'insensitive' } } },
+        { lead: { lastName: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
 
     // ADMIN : Tous les deals (pas de filtre supplémentaire)
     if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
@@ -67,12 +91,26 @@ export class CrmService {
       const userIds = closersAndSetters.map((u) => u.id);
 
       // Filtrer les deals : ceux dont le lead est assigné à un closer/setter de l'organisation
-      where.lead = {
-        OR: [
-          { assignedCloserId: { in: userIds } },
-          { assignedSetterId: { in: userIds } },
-        ],
+      const roleFilter = {
+        lead: {
+          OR: [
+            { assignedCloserId: { in: userIds } },
+            { assignedSetterId: { in: userIds } },
+          ],
+        },
       };
+
+      // Combiner avec le filtre de recherche si présent
+      if (where.OR) {
+        where = {
+          AND: [
+            { OR: where.OR },
+            roleFilter,
+          ],
+        };
+      } else {
+        where = { ...where, ...roleFilter };
+      }
     }
     // Closer : Deals des leads qui lui sont assignés
     else if (userRole === 'CLOSER') {
@@ -91,68 +129,73 @@ export class CrmService {
       where.id = 'none'; // Aucun résultat
     }
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    const [dealsData, total] = await Promise.all([
-      this.prisma.deal.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          lead: {
-            include: {
-              assignedCloser: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                },
+    // Cursor pagination
+    const cursorWhere = buildCursorWhere(cursor, sortBy, sortOrder);
+    if (cursorWhere) {
+      where = {
+        AND: [
+          where,
+          cursorWhere,
+        ],
+      };
+    }
+
+    // Ordering
+    const orderBy = buildOrderBy(sortBy, sortOrder, { createdAt: 'desc', id: 'desc' });
+
+    // Fetch one extra item to determine if there's a next page
+    const take = limit + 1;
+    const dealsData = await this.prisma.deal.findMany({
+      where,
+      take,
+      include: {
+        lead: {
+          include: {
+            assignedCloser: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
               },
-              assignedSetter: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                },
+            },
+            assignedSetter: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
               },
             },
           },
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      }),
-      this.prisma.deal.count({ where }),
-    ]);
+      },
+      orderBy,
+    });
 
     // Masquer les montants pour Manager
-    const data = userRole === 'MANAGER'
+    const allData = userRole === 'MANAGER'
       ? dealsData.map((deal) => {
           const { value, ...dealWithoutValue } = deal;
           return dealWithoutValue;
         })
       : dealsData;
 
-    const totalPages = Math.ceil(total / limit);
+    // Check if there's a next page
+    const hasNextPage = allData.length > limit;
+    const items = hasNextPage ? allData.slice(0, limit) : allData;
 
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      },
-    };
+    // Extract cursor from last item
+    const nextCursor = items.length > 0
+      ? extractCursor(items[items.length - 1], sortBy)
+      : null;
+
+    return new PaginatedResponse(items, limit, nextCursor);
   }
 
   async getPipeline(organizationId: string, userId: string, userRole: string) {

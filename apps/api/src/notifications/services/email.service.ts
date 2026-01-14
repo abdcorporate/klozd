@@ -52,6 +52,14 @@ export class EmailService {
         if (result.error) {
           this.logger.error('❌ Erreur Resend:', JSON.stringify(result.error, null, 2));
           this.logger.error(`❌ Détails de l'erreur: ${result.error.message || 'Erreur inconnue'}`);
+          this.logger.error(`❌ Code d'erreur: ${result.error.name || 'N/A'}`);
+          this.logger.error(`❌ Email FROM utilisé: ${from}`);
+          this.logger.error(`❌ Email TO: ${to}`);
+          // Erreur courante : domaine non vérifié
+          if (result.error.message?.includes('domain') || result.error.message?.includes('verified')) {
+            this.logger.error('💡 Le domaine utilisé dans EMAIL_FROM doit être vérifié dans Resend Dashboard');
+            this.logger.error('💡 Vérifiez sur https://resend.com/domains que le domaine est bien vérifié');
+          }
           return false;
         }
 

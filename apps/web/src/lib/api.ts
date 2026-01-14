@@ -79,7 +79,8 @@ export const authApi = {
 };
 
 export const formsApi = {
-  getAll: () => api.get('/forms'),
+  getAll: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string }) => 
+    api.get('/forms', { params }),
   getOne: (idOrSlug: string) => {
     // Si c'est un slug (contient des tirets/lettres), utiliser l'endpoint public
     if (idOrSlug.includes('-') || /^[a-z]/.test(idOrSlug)) {
@@ -90,7 +91,13 @@ export const formsApi = {
   create: (data: any) => api.post('/forms', data),
   update: (id: string, data: any) => api.patch(`/forms/${id}`, data),
   delete: (id: string) => api.delete(`/forms/${id}`),
-  submit: (formId: string, data: any) => api.post(`/leads/forms/${formId}/submit`, data),
+  submit: (formId: string, data: any, idempotencyKey?: string) => {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
+    return api.post(`/leads/forms/${formId}/submit`, data, { headers });
+  },
   trackAbandon: (formId: string, email?: string, dataJson?: string, completionPercentage?: number) =>
     api.post(`/leads/forms/${formId}/abandon`, { email, dataJson, completionPercentage }),
   getAnalytics: (id: string, days?: number) => api.get(`/forms/${id}/analytics`, { params: { days } }),
@@ -102,7 +109,8 @@ export const calendarConfigApi = {
 };
 
 export const leadsApi = {
-  getAll: (filters?: any) => api.get('/leads', { params: filters }),
+  getAll: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string; [key: string]: any }) => 
+    api.get('/leads', { params }),
   getOne: (id: string) => api.get(`/leads/${id}`),
   getOnePublic: (id: string) => api.get(`/leads/book/${id}`),
   update: (id: string, data: any) => api.patch(`/leads/${id}`, data),
@@ -110,7 +118,8 @@ export const leadsApi = {
 };
 
 export const sitesApi = {
-  getAll: () => api.get('/sites'),
+  getAll: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string }) => 
+    api.get('/sites', { params }),
   getOne: (id: string) => api.get(`/sites/${id}`),
   getBySlug: (slug: string) => api.get(`/sites/public/${slug}`),
   create: (data: any) => api.post('/sites', data),
@@ -119,14 +128,16 @@ export const sitesApi = {
 };
 
 export const crmApi = {
-  getDeals: () => api.get('/crm/deals'),
+  getDeals: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string; [key: string]: any }) => 
+    api.get('/crm/deals', { params }),
   getPipeline: () => api.get('/crm/pipeline'),
   createDeal: (data: any) => api.post('/crm/deals', data),
   updateDeal: (id: string, data: any) => api.patch(`/crm/deals/${id}`, data),
 };
 
 export const schedulingApi = {
-  getAppointments: () => api.get('/scheduling/appointments'),
+  getAppointments: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string; [key: string]: any }) => 
+    api.get('/scheduling/appointments', { params }),
   getOne: (id: string) => api.get(`/scheduling/appointments/${id}`),
   create: (data: any) => api.post('/scheduling/appointments', data),
   update: (id: string, data: any) => api.patch(`/scheduling/appointments/${id}`, data),
@@ -135,7 +146,13 @@ export const schedulingApi = {
   markNoShow: (id: string) => api.post(`/scheduling/appointments/${id}/no-show`),
   // Public endpoints
   getAvailability: (closerId: string) => api.get(`/scheduling/availability/${closerId}`),
-  createPublic: (data: any) => api.post('/scheduling/appointments/public', data),
+  createPublic: (data: any, idempotencyKey?: string) => {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
+    return api.post('/scheduling/appointments/public', data, { headers });
+  },
 };
 
 export const dashboardApi = {
@@ -149,7 +166,8 @@ export const dashboardApi = {
 };
 
 export const usersApi = {
-  getAll: () => api.get('/users'),
+  getAll: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string }) => 
+    api.get('/users', { params }),
   getOne: (id: string) => api.get(`/users/${id}`),
   create: (data: any) => api.post('/users', data),
   update: (id: string, data: any) => api.patch(`/users/${id}`, data),
@@ -178,7 +196,8 @@ export const invitationsApi = {
 };
 
 export const notificationsApi = {
-  getAll: () => api.get('/notifications'),
+  getAll: (params?: { limit?: number; cursor?: string; sortBy?: string; sortOrder?: 'asc' | 'desc'; q?: string }) => 
+    api.get('/notifications', { params }),
   getUnreadCount: () => api.get('/notifications/unread/count'),
   markAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
   markAllAsRead: () => api.patch('/notifications/read-all'),

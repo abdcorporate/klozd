@@ -83,7 +83,10 @@ Cette commande va :
 - Générer les tables dans PostgreSQL
 - Créer le client Prisma TypeScript
 
-**Note** : Si tu rencontres une erreur `ERR_REQUIRE_ESM` avec Prisma 7.x, c'est un problème connu avec pnpm. Le projet utilise Prisma 6.1.0 qui est stable. Si tu veux utiliser Prisma 7, tu peux essayer avec `npm` au lieu de `pnpm`.
+**Note** : 
+- En **développement**, utilise toujours `pnpm prisma migrate dev` pour créer et appliquer les migrations.
+- En **production**, utilise `pnpm prisma migrate deploy` pour appliquer les migrations existantes.
+- Si tu rencontres une erreur `ERR_REQUIRE_ESM` avec Prisma 7.x, c'est un problème connu avec pnpm. Le projet utilise Prisma 6.1.0 qui est stable.
 
 ## Étape 5 : Configurer le Frontend
 

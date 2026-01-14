@@ -126,12 +126,14 @@ export default function BookAppointmentPage() {
 
     try {
       setSubmitting(true);
+      // Generate idempotency key for this booking
+      const idempotencyKey = crypto.randomUUID();
       await schedulingApi.createPublic({
         leadId,
         assignedCloserId: closerId,
         scheduledAt: selectedSlot,
         duration: 30,
-      });
+      }, idempotencyKey);
 
       // TODO: Envoyer message WhatsApp au closer
       // if (closer?.phone) {

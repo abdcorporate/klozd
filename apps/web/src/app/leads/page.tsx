@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { leadsApi, exportsApi, usersApi } from '@/lib/api';
 import { AppLayout } from '@/components/layout/app-layout';
@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import Link from 'next/link';
+import { useCursorPagination } from '@/lib/pagination/useCursorPagination';
 
 interface Lead {
   id: string;
@@ -35,11 +36,11 @@ interface Closer {
   email: string;
 }
 
-export default function LeadsPage() {
+function LeadsPageContent() {
   const { user, isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const pagination = useCursorPagination<Lead>();
+  const { items: leads, pageInfo, loading, error, limit, cursor, sortBy, sortOrder, q, setQuery, setSort, nextPage } = pagination;
   const [closers, setClosers] = useState<Closer[]>([]);
   const [updatingCloser, setUpdatingCloser] = useState<string | null>(null);
 
@@ -71,27 +72,62 @@ export default function LeadsPage() {
       router.push('/dashboard');
       return;
     }
+  }, [user, isAuthenticated, router]);
+
+  // Fetch leads with pagination
+  useEffect(() => {
+    if (!isAuthenticated || user?.role === 'CLOSER') return;
 
     const fetchLeads = async () => {
+      pagination.setLoading(true);
+      pagination.setError(null);
       try {
-        const response = await leadsApi.getAll();
-        // L'API retourne { data: [...], meta: {...} }
-        setLeads(Array.isArray(response.data) ? response.data : (response.data?.data || []));
-      } catch (error) {
-        console.error('Error fetching leads:', error);
-        setLeads([]); // S'assurer que leads est toujours un tableau
+        const response = await leadsApi.getAll({
+          limit,
+          cursor: cursor || undefined,
+          sortBy,
+          sortOrder,
+          q: q || undefined,
+        });
+        
+        // Handle new paginated response format: { items, pageInfo }
+        if (response.data.items && response.data.pageInfo) {
+          pagination.setItems(response.data.items);
+          pagination.setPageInfo(response.data.pageInfo);
+        } else {
+          // Fallback for old format
+          const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+          pagination.setItems(items);
+          pagination.setPageInfo({
+            limit: items.length,
+            nextCursor: null,
+            hasNextPage: false,
+          });
+        }
+      } catch (err: any) {
+        console.error('Error fetching leads:', err);
+        pagination.setError(err);
+        pagination.setItems([]);
       } finally {
-        setLoading(false);
+        pagination.setLoading(false);
       }
     };
+
+    fetchLeads();
+  }, [limit, cursor, sortBy, sortOrder, q, isAuthenticated, user?.role]);
+
+  // Fetch closers (only once, not paginated)
+  useEffect(() => {
+    if (!isAuthenticated || user?.role === 'CLOSER') return;
 
     const fetchClosers = async () => {
       // Seulement pour SUPER_ADMIN, MANAGER et ADMIN
       if (user?.role === 'SUPER_ADMIN' || user?.role === 'MANAGER' || user?.role === 'ADMIN') {
         try {
-          const response = await usersApi.getAll();
-          // Filtrer uniquement les closers actifs
-          const closersList = response.data.filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE');
+          const response = await usersApi.getAll({ limit: 100 }); // Get all closers (reasonable limit)
+          // Handle paginated response
+          const users = response.data.items || response.data.data || response.data || [];
+          const closersList = users.filter((u: any) => u.role === 'CLOSER' && u.status === 'ACTIVE');
           setClosers(closersList);
         } catch (error) {
           console.error('Error fetching closers:', error);
@@ -100,23 +136,12 @@ export default function LeadsPage() {
       }
     };
 
-    fetchLeads();
     fetchClosers();
-  }, [user, isAuthenticated, router]);
+  }, [user?.role, isAuthenticated]);
 
   // Rediriger les closers
   if (user?.role === 'CLOSER') {
     return null; // Le useEffect va rediriger
-  }
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Chargement...</div>
-        </div>
-      </AppLayout>
-    );
   }
 
   const getStatusLabel = (status: string): string => {
@@ -218,61 +243,119 @@ export default function LeadsPage() {
           </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Lead</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Explication</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {leads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-gray-100">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Link
-                      href={`/leads/${lead.id}`}
-                      className="text-sm font-medium text-gray-900 hover:text-brand-orange transition-colors"
-                    >
-                      {lead.firstName} {lead.lastName}
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{lead.email}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {lead.qualificationScore !== null ? (
-                      <span className="text-sm font-medium text-gray-900">{lead.qualificationScore}/100</span>
-                    ) : (
-                      <span className="text-sm text-gray-600">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded ${getStatusColor(lead.status)}`}>
-                      {getStatusLabel(lead.status)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 max-w-xs">
-                    <div className="text-xs italic">
-                      {getQualificationExplanation(lead) || '-'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {format(new Date(lead.createdAt), 'd MMM yyyy HH:mm', { locale: fr })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Search and filters */}
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+          <div className="flex gap-4 items-center">
+            <input
+              type="text"
+              placeholder="Rechercher par email, nom, entreprise..."
+              value={q}
+              onChange={(e) => setQuery(e.target.value)}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange"
+            />
+            <select
+              value={sortBy}
+              onChange={(e) => setSort(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange"
+            >
+              <option value="createdAt">Date de création</option>
+              <option value="updatedAt">Date de modification</option>
+              <option value="qualificationScore">Score</option>
+            </select>
+            <button
+              onClick={() => setSort(sortBy, sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+          </div>
         </div>
 
-        {leads.length === 0 && (
-          <div className="bg-white p-12 rounded-lg shadow-lg border border-gray-200 text-center">
-            <p className="text-gray-600">Aucun lead pour le moment</p>
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            Erreur lors du chargement: {error.message}
+          </div>
+        )}
+
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+          {loading && (
+            <div className="p-8 text-center text-gray-500">Chargement...</div>
+          )}
+          {!loading && (
+            <>
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Lead</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Explication</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {leads.map((lead) => (
+                    <tr key={lead.id} className="hover:bg-gray-100">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-brand-orange transition-colors"
+                        >
+                          {lead.firstName} {lead.lastName}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">{lead.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {lead.qualificationScore !== null ? (
+                          <span className="text-sm font-medium text-gray-900">{lead.qualificationScore}/100</span>
+                        ) : (
+                          <span className="text-sm text-gray-600">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded ${getStatusColor(lead.status)}`}>
+                          {getStatusLabel(lead.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs">
+                        <div className="text-xs italic">
+                          {getQualificationExplanation(lead) || '-'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {format(new Date(lead.createdAt), 'd MMM yyyy HH:mm', { locale: fr })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {leads.length === 0 && !loading && (
+                <div className="p-12 text-center text-gray-500">
+                  Aucun lead trouvé
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Pagination controls */}
+        {pageInfo && (
+          <div className="flex justify-between items-center bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+            <div className="text-sm text-gray-600">
+              {leads.length} résultat{leads.length > 1 ? 's' : ''} affiché{leads.length > 1 ? 's' : ''}
+            </div>
+            {pageInfo.hasNextPage && (
+              <button
+                onClick={nextPage}
+                disabled={loading}
+                className="px-4 py-2 bg-brand-orange text-white rounded-lg hover:bg-brand-orange-dark disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Chargement...' : 'Charger plus'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -280,4 +363,16 @@ export default function LeadsPage() {
   );
 }
 
-
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">Chargement...</div>
+        </div>
+      </AppLayout>
+    }>
+      <LeadsPageContent />
+    </Suspense>
+  );
+}

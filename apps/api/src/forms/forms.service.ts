@@ -2,6 +2,13 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFormDto, UpdateFormDto } from './dto/forms.dto';
 import { PricingService } from '../settings/pricing.service';
+import {
+  PaginationQueryDto,
+  buildOrderBy,
+  buildCursorWhere,
+  extractCursor,
+  PaginatedResponse,
+} from '../common/pagination';
 
 @Injectable()
 export class FormsService {
@@ -59,9 +66,45 @@ export class FormsService {
     });
   }
 
-  async findAll(organizationId: string) {
-    return this.prisma.form.findMany({
-      where: { organizationId },
+  async findAll(organizationId: string, pagination: PaginationQueryDto): Promise<PaginatedResponse<any>> {
+    const {
+      limit = 25,
+      cursor,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      q,
+    } = pagination;
+
+    let where: any = { organizationId };
+
+    // Recherche textuelle (q)
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { slug: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    // Cursor pagination
+    const cursorWhere = buildCursorWhere(cursor, sortBy, sortOrder);
+    if (cursorWhere) {
+      where = {
+        AND: [
+          where,
+          cursorWhere,
+        ],
+      };
+    }
+
+    // Ordering
+    const orderBy = buildOrderBy(sortBy, sortOrder, { createdAt: 'desc', id: 'desc' });
+
+    // Fetch one extra item to determine if there's a next page
+    const take = limit + 1;
+    const data = await this.prisma.form.findMany({
+      where,
+      take,
       include: {
         formFields: {
           orderBy: { order: 'asc' },
@@ -73,11 +116,60 @@ export class FormsService {
           },
         },
       },
+      orderBy,
     });
+
+    // Check if there's a next page
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, limit) : data;
+
+    // Extract cursor from last item
+    const nextCursor = items.length > 0
+      ? extractCursor(items[items.length - 1], sortBy)
+      : null;
+
+    return new PaginatedResponse(items, limit, nextCursor);
   }
 
-  async findAllForAdmin() {
-    return this.prisma.form.findMany({
+  async findAllForAdmin(pagination: PaginationQueryDto): Promise<PaginatedResponse<any>> {
+    const {
+      limit = 25,
+      cursor,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      q,
+    } = pagination;
+
+    let where: any = {};
+
+    // Recherche textuelle (q)
+    if (q) {
+      where.OR = [
+        { name: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { slug: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    // Cursor pagination
+    const cursorWhere = buildCursorWhere(cursor, sortBy, sortOrder);
+    if (cursorWhere) {
+      where = {
+        AND: [
+          where,
+          cursorWhere,
+        ],
+      };
+    }
+
+    // Ordering
+    const orderBy = buildOrderBy(sortBy, sortOrder, { createdAt: 'desc', id: 'desc' });
+
+    // Fetch one extra item to determine if there's a next page
+    const take = limit + 1;
+    const data = await this.prisma.form.findMany({
+      where,
+      take,
       include: {
         formFields: {
           orderBy: { order: 'asc' },
@@ -96,10 +188,19 @@ export class FormsService {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy,
     });
+
+    // Check if there's a next page
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, limit) : data;
+
+    // Extract cursor from last item
+    const nextCursor = items.length > 0
+      ? extractCursor(items[items.length - 1], sortBy)
+      : null;
+
+    return new PaginatedResponse(items, limit, nextCursor);
   }
 
   async findOne(id: string, organizationId: string) {

@@ -1,4 +1,5 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Get, Query, Param } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Get, Query, Param, UseGuards, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 
@@ -7,16 +8,19 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per minute
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per minute (brute-force protection will handle stricter limits)
+  async login(@Body() loginDto: LoginDto, @Req() req: any) {
     console.log('🔐 Tentative de connexion pour:', loginDto.email);
+    const ip = req.ip || req.connection?.remoteAddress;
     try {
-      const result = await this.authService.login(loginDto);
+      const result = await this.authService.login(loginDto, ip);
       console.log('✅ Connexion réussie pour:', loginDto.email);
       return result;
     } catch (error) {
@@ -38,6 +42,7 @@ export class AuthController {
 
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   async resendVerificationEmail(@Body() body: { email: string }) {
     return this.authService.resendVerificationEmail(body.email);
   }

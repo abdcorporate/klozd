@@ -4,6 +4,13 @@ import { SubmitFormDto } from './dto/leads.dto';
 import { ScoringService } from './services/scoring.service';
 import { PricingService } from '../settings/pricing.service';
 import { AttributionService } from '../scheduling/services/attribution.service';
+import {
+  PaginationQueryDto,
+  buildOrderBy,
+  buildCursorWhere,
+  extractCursor,
+  PaginatedResponse,
+} from '../common/pagination';
 
 @Injectable()
 export class LeadsService {
@@ -176,15 +183,33 @@ export class LeadsService {
     organizationId: string,
     userId: string,
     userRole: string,
+    pagination: PaginationQueryDto,
     filters?: any,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  ): Promise<PaginatedResponse<any>> {
+    const {
+      limit = 25,
+      cursor,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      q,
+    } = pagination;
+
     // Construire les filtres selon le rôle
     let where: any = {
       organizationId,
       ...filters,
     };
+
+    // Recherche textuelle (q)
+    if (q) {
+      where.OR = [
+        { email: { contains: q, mode: 'insensitive' } },
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+        { company: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q, mode: 'insensitive' } },
+      ];
+    }
 
     // ADMIN : Tous les leads (pas de filtre supplémentaire)
     if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
@@ -208,11 +233,25 @@ export class LeadsService {
       const userIds = closersAndSetters.map((u) => u.id);
 
       // Filtrer les leads : soit assignés à un closer/setter de l'organisation, soit non assignés
-      where.OR = [
-        { assignedCloserId: { in: userIds } },
-        { assignedSetterId: { in: userIds } },
-        { assignedCloserId: null }, // Leads non assignés
-      ];
+      const roleFilter = {
+        OR: [
+          { assignedCloserId: { in: userIds } },
+          { assignedSetterId: { in: userIds } },
+          { assignedCloserId: null }, // Leads non assignés
+        ],
+      };
+
+      // Combiner avec le filtre de recherche si présent
+      if (where.OR) {
+        where = {
+          AND: [
+            { OR: where.OR },
+            roleFilter,
+          ],
+        };
+      } else {
+        where = { ...where, ...roleFilter };
+      }
     }
     // Closer : Seulement ses leads assignés
     else if (userRole === 'CLOSER') {
@@ -220,73 +259,92 @@ export class LeadsService {
     }
     // Setter : Leads assignés à lui ou non assignés
     else if (userRole === 'SETTER') {
-      where.OR = [
-        { assignedSetterId: userId },
-        { assignedSetterId: null }, // Leads non assignés qu'il peut qualifier
-      ];
+      const setterFilter = {
+        OR: [
+          { assignedSetterId: userId },
+          { assignedSetterId: null }, // Leads non assignés qu'il peut qualifier
+        ],
+      };
+
+      // Combiner avec le filtre de recherche si présent
+      if (where.OR) {
+        where = {
+          AND: [
+            { OR: where.OR },
+            setterFilter,
+          ],
+        };
+      } else {
+        where = { ...where, ...setterFilter };
+      }
     }
     else {
       where.id = 'none'; // Aucun résultat
     }
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.lead.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          assignedCloser: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          assignedSetter: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          form: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          aiPrediction: true,
-          _count: {
-            select: {
-              appointments: true,
-              deals: true,
-            },
+    // Cursor pagination
+    const cursorWhere = buildCursorWhere(cursor, sortBy, sortOrder);
+    if (cursorWhere) {
+      where = {
+        AND: [
+          where,
+          cursorWhere,
+        ],
+      };
+    }
+
+    // Ordering
+    const orderBy = buildOrderBy(sortBy, sortOrder, { createdAt: 'desc', id: 'desc' });
+
+    // Fetch one extra item to determine if there's a next page
+    const take = limit + 1;
+    const data = await this.prisma.lead.findMany({
+      where,
+      take,
+      include: {
+        assignedCloser: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
           },
         },
-        orderBy: {
-          createdAt: 'desc',
+        assignedSetter: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
         },
-      }),
-      this.prisma.lead.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        form: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        aiPrediction: true,
+        _count: {
+          select: {
+            appointments: true,
+            deals: true,
+          },
+        },
       },
-    };
+      orderBy,
+    });
+
+    // Check if there's a next page
+    const hasNextPage = data.length > limit;
+    const items = hasNextPage ? data.slice(0, limit) : data;
+
+    // Extract cursor from last item
+    const nextCursor = items.length > 0
+      ? extractCursor(items[items.length - 1], sortBy)
+      : null;
+
+    return new PaginatedResponse(items, limit, nextCursor);
   }
 
   async findOnePublic(id: string) {

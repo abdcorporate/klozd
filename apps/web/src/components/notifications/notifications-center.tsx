@@ -54,10 +54,24 @@ export function NotificationsCenter() {
 
   const fetchNotifications = async () => {
     try {
-      const response = await notificationsApi.getAll();
-      setNotifications(response.data);
+      setLoading(true);
+      const response = await notificationsApi.getAll({
+        limit: 50, // Limit for dropdown
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+      });
+      
+      // Handle new paginated response format: { items, pageInfo }
+      if (response.data.items && response.data.pageInfo) {
+        setNotifications(response.data.items);
+      } else {
+        // Fallback for old format
+        const notificationsData = response?.data?.data || response?.data || [];
+        setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+      }
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }
