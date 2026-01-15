@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCalendarConfigDto } from './dto/calendar-config.dto';
+import { AuditLogService } from '../common/services/audit-log.service';
 
 @Injectable()
 export class CalendarConfigService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditLogService: AuditLogService,
+  ) {}
 
   /**
    * Récupère la configuration du calendrier pour une organisation
@@ -46,11 +50,23 @@ export class CalendarConfigService {
   /**
    * Met à jour la configuration du calendrier
    */
-  async update(organizationId: string, updateDto: UpdateCalendarConfigDto) {
+  async update(organizationId: string, updateDto: UpdateCalendarConfigDto, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     // Vérifier que la config existe, sinon la créer
     const existing = await this.prisma.calendarConfig.findUnique({
       where: { organizationId },
     });
+
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = existing ? {
+      callDuration: existing.callDuration,
+      bufferBefore: existing.bufferBefore,
+      bufferAfter: existing.bufferAfter,
+      attributionMethod: existing.attributionMethod,
+      emailConfirmationImmediate: existing.emailConfirmationImmediate,
+      emailReminder24h: existing.emailReminder24h,
+      emailReminder1h: existing.emailReminder1h,
+      smsReminder1h: existing.smsReminder1h,
+    } : null;
 
     const updateData: any = {};
 
@@ -99,6 +115,27 @@ export class CalendarConfigService {
             assignedClosersJson: updateData.assignedClosersJson || JSON.stringify([]),
           },
         });
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action: 'UPDATE',
+      entityType: 'SETTINGS',
+      entityId: `calendar-config-${organizationId}`,
+      before: beforeState,
+      after: {
+        callDuration: config.callDuration,
+        bufferBefore: config.bufferBefore,
+        bufferAfter: config.bufferAfter,
+        attributionMethod: config.attributionMethod,
+        emailConfirmationImmediate: config.emailConfirmationImmediate,
+        emailReminder24h: config.emailReminder24h,
+        emailReminder1h: config.emailReminder1h,
+        smsReminder1h: config.smsReminder1h,
+      },
+      reqMeta,
+    });
 
     return {
       ...config,

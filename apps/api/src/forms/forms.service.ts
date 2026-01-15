@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { CreateFormDto, UpdateFormDto } from './dto/forms.dto';
 import { PricingService } from '../settings/pricing.service';
+import { AuditLogService } from '../common/services/audit-log.service';
 import {
   PaginationQueryDto,
   buildOrderBy,
@@ -15,7 +17,9 @@ import {
 export class FormsService {
   constructor(
     private prisma: PrismaService,
+    private tenantPrisma: TenantPrismaService,
     private pricingService: PricingService,
+    private auditLogService: AuditLogService,
   ) {}
 
   async create(organizationId: string, createFormDto: CreateFormDto) {
@@ -221,28 +225,18 @@ export class FormsService {
   async findOne(id: string, organizationId: string) {
     console.log(`[FormsService.findOne] Looking for form ${id} in organization ${organizationId}`);
     
-    const form = await this.prisma.form.findUnique({
-      where: { id },
-      include: {
-        formFields: {
-          orderBy: { order: 'asc' },
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    const form = await this.tenantPrisma.form.findUnique(
+      {
+        where: { id },
+        include: {
+          formFields: {
+            orderBy: { order: 'asc' },
+          },
         },
       },
-    });
-
-    console.log(`[FormsService.findOne] Form found:`, form ? `${form.name} (org: ${form.organizationId})` : 'NOT FOUND');
-
-    if (!form) {
-      throw new NotFoundException(`Formulaire avec l'ID ${id} n'existe pas`);
-    }
-
-    // Vérifier si le formulaire appartient à l'organisation
-    if (form.organizationId !== organizationId) {
-      console.log(`[FormsService.findOne] Organization mismatch: form org ${form.organizationId} !== user org ${organizationId}`);
-      throw new NotFoundException(
-        `Formulaire avec l'ID ${id} n'appartient pas à l'organisation ${organizationId}. Il appartient à ${form.organizationId}`,
-      );
-    }
+      organizationId,
+    );
 
     console.log(`[FormsService.findOne] Success: returning form ${form.name}`);
     return form;
@@ -282,20 +276,41 @@ export class FormsService {
     return form;
   }
 
-  async update(id: string, organizationId: string, updateFormDto: UpdateFormDto) {
-    await this.findOne(id, organizationId);
+  async update(id: string, organizationId: string, updateFormDto: UpdateFormDto, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
+    // Récupérer l'état avant pour l'audit log
+    const beforeForm = await this.tenantPrisma.form.findUnique(
+      {
+        where: { id },
+        include: {
+          formFields: true,
+        },
+      },
+      organizationId,
+    );
 
     // Séparer les champs du formulaire des champs de relation
     const { formFields, ...formData } = updateFormDto;
 
+    // Déterminer l'action pour l'audit log
+    let action = 'UPDATE';
+    if (updateFormDto.status === 'ACTIVE' && beforeForm?.status !== 'ACTIVE') {
+      action = 'PUBLISH';
+    } else if (updateFormDto.status && updateFormDto.status !== beforeForm?.status) {
+      action = 'STATUS_CHANGE';
+    }
+
     try {
-      const updatedForm = await this.prisma.form.update({
-        where: { id },
-        data: formData,
-        include: {
-          formFields: true,
+      // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+      const updatedForm = await this.tenantPrisma.form.update(
+        {
+          where: { id },
+          data: formData,
+          include: {
+            formFields: true,
+          },
         },
-      });
+        organizationId,
+      );
 
     // Si des formFields sont fournis, supprimer les anciens et créer les nouveaux
     if (formFields && formFields.length > 0) {
@@ -313,15 +328,42 @@ export class FormsService {
       });
     }
     
-      // Retourner le formulaire mis à jour avec ses champs
-      return this.prisma.form.findUnique({
-        where: { id },
-        include: {
-          formFields: {
-            orderBy: { order: 'asc' },
+      // Récupérer le formulaire final pour l'audit log
+      const finalForm = await this.tenantPrisma.form.findUnique(
+        {
+          where: { id },
+          include: {
+            formFields: {
+              orderBy: { order: 'asc' },
+            },
           },
         },
+        organizationId,
+      );
+
+      // Audit log
+      await this.auditLogService.logChange({
+        actor: userId ? { id: userId } : null,
+        orgId: organizationId,
+        action,
+        entityType: 'FORM',
+        entityId: id,
+        before: {
+          name: beforeForm?.name,
+          status: beforeForm?.status,
+          slug: beforeForm?.slug,
+          formFieldsCount: (beforeForm as any)?.formFields?.length || 0,
+        },
+        after: {
+          name: finalForm?.name,
+          status: finalForm?.status,
+          slug: finalForm?.slug,
+          formFieldsCount: (finalForm as any)?.formFields?.length || 0,
+        },
+        reqMeta,
       });
+
+      return finalForm;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
@@ -565,9 +607,46 @@ export class FormsService {
     };
   }
 
+  /**
+   * Évalue un formulaire public (pour preview/validation)
+   * Retourne les états effectifs des champs conditionnels et la validation
+   */
+  async evaluateForm(slug: string, data: Record<string, any>) {
+    const form = await this.findBySlug(slug);
+
+    // TODO: Implémenter l'évaluation des règles conditionnelles
+    // Pour l'instant, retourner une structure basique
+    const effectiveStates: Record<string, boolean> = {};
+    const effectiveStateMap: Record<string, any> = {};
+    const effectiveData: Record<string, any> = { ...data };
+
+    // Validation basique des champs requis
+    const validation: { valid: boolean; errors: Array<{ field: string; message: string }> } = {
+      valid: true,
+      errors: [],
+    };
+
+    form.formFields.forEach((field) => {
+      if (field.required && (!data[field.id] || data[field.id] === '')) {
+        validation.valid = false;
+        validation.errors.push({
+          field: field.id,
+          message: `Le champ "${field.label}" est requis`,
+        });
+      }
+    });
+
+    return {
+      effectiveStates,
+      effectiveStateMap,
+      effectiveData,
+      validation,
+    };
+  }
+
   async remove(id: string, organizationId: string) {
-    await this.findOne(id, organizationId);
-    return this.prisma.form.delete({ where: { id } });
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    return this.tenantPrisma.form.delete({ where: { id } }, organizationId);
   }
 }
 

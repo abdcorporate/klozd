@@ -2,10 +2,26 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Configure trust proxy for reverse proxy scenarios (Ingress NGINX / LoadBalancer)
+  // TRUST_PROXY=true enables reading X-Forwarded-For and X-Real-IP headers
+  const trustProxy = process.env.TRUST_PROXY === 'true';
+  if (trustProxy) {
+    // NestJS uses Express adapter by default, access Express instance
+    const httpAdapter = app.getHttpAdapter();
+    if (httpAdapter && typeof httpAdapter.getInstance === 'function') {
+      const expressApp = httpAdapter.getInstance();
+      expressApp.set('trust proxy', true);
+    }
+    console.log('✅ Trust proxy enabled - reading X-Forwarded-For and X-Real-IP headers');
+  } else {
+    console.log('⚠️ Trust proxy disabled - using direct connection IP');
+  }
 
   // Helmet pour la sécurité (avec configuration pour permettre les requêtes API)
   app.use(
@@ -15,12 +31,26 @@ async function bootstrap() {
     }),
   );
 
+  // Enable cookie parser
+  app.use(cookieParser());
+
   // Enable CORS
+  // Support multiple origins if CORS_ORIGINS is set (comma-separated)
+  // Otherwise fallback to FRONTEND_URL or localhost
+  // By default, include both web app (3000) and marketing app (3002) for development
+  const defaultOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
+    'http://localhost:3002', // Marketing app
+  ];
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
+    : defaultOrigins;
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    credentials: true, // Important pour les cookies
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-CSRF-Token'],
   });
 
   // Global validation pipe
@@ -31,6 +61,22 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Body size limits for public endpoints (applied globally, can be overridden per route)
+  app.use((req, res, next) => {
+    // Limit body size to 1MB for public endpoints
+    if (req.path.startsWith('/forms/public') || req.path.startsWith('/leads/forms')) {
+      const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+      if (contentLength > 1024 * 1024) {
+        // 1MB limit
+        return res.status(413).json({
+          statusCode: 413,
+          message: 'Request body too large. Maximum size is 1MB.',
+        });
+      }
+    }
+    next();
+  });
 
   // Swagger/OpenAPI Documentation
   const config = new DocumentBuilder()

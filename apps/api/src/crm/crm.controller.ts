@@ -11,7 +11,10 @@ import {
 import { CrmService } from './crm.service';
 import { CreateDealDto, UpdateDealDto } from './dto/crm.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OwnershipGuard } from '../auth/guards/ownership.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireOwnership } from '../auth/decorators/require-ownership.decorator';
+import { ResourceType } from '../auth/policies/ownership-policy.service';
 import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 
@@ -64,6 +67,8 @@ export class CrmController {
   }
 
   @Patch('deals/:id')
+  @UseGuards(OwnershipGuard)
+  @RequireOwnership(ResourceType.DEAL)
   updateDeal(
     @CurrentUser() user: any,
     @Param('id') id: string,

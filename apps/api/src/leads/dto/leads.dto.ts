@@ -22,6 +22,14 @@ export class SubmitFormDto {
 
   @IsObject()
   data: Record<string, any>; // Réponses du formulaire
+
+  @IsString()
+  @IsOptional()
+  formRenderedAt?: string; // Timestamp ISO du rendu du formulaire (pour détection de bots)
+
+  @IsString()
+  @IsOptional()
+  honeypot?: string; // Champ honeypot (doit être vide)
 }
 
 

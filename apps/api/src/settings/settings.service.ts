@@ -2,12 +2,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrganizationSettingsDto } from './dto/settings.dto';
 import { PricingService } from './pricing.service';
+import { AuditLogService } from '../common/services/audit-log.service';
 
 @Injectable()
 export class SettingsService {
   constructor(
     private prisma: PrismaService,
     private pricingService: PricingService,
+    private auditLogService: AuditLogService,
   ) {}
 
   async getSettings(organizationId: string) {
@@ -79,7 +81,7 @@ export class SettingsService {
     }
   }
 
-  async updateSettings(organizationId: string, updateDto: UpdateOrganizationSettingsDto) {
+  async updateSettings(organizationId: string, updateDto: UpdateOrganizationSettingsDto, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     const existing = await this.prisma.organizationSettings.findUnique({
       where: { organizationId },
     });
@@ -87,6 +89,15 @@ export class SettingsService {
     if (!existing) {
       throw new NotFoundException('Paramètres non trouvés');
     }
+
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = {
+      subscriptionPlan: existing.subscriptionPlan,
+      monthlyPrice: existing.monthlyPrice,
+      maxUsers: existing.maxUsers,
+      maxForms: existing.maxForms,
+      maxLeadsPerMonth: existing.maxLeadsPerMonth,
+    };
 
     // Si le plan change, appliquer les quotas et prix du nouveau plan
     let updateData: any = {
@@ -119,7 +130,7 @@ export class SettingsService {
       };
     }
 
-    return this.prisma.organizationSettings.update({
+    const updated = await this.prisma.organizationSettings.update({
       where: { organizationId },
       data: updateData,
       include: {
@@ -135,13 +146,62 @@ export class SettingsService {
         },
       },
     });
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action: 'UPDATE',
+      entityType: 'SETTINGS',
+      entityId: organizationId,
+      before: beforeState,
+      after: {
+        subscriptionPlan: updated.subscriptionPlan,
+        monthlyPrice: updated.monthlyPrice,
+        maxUsers: updated.maxUsers,
+        maxForms: updated.maxForms,
+        maxLeadsPerMonth: updated.maxLeadsPerMonth,
+      },
+      reqMeta,
+    });
+
+    return updated;
   }
 
-  async updateOrganization(organizationId: string, data: { name?: string; logoUrl?: string; timezone?: string; currency?: string }) {
-    return this.prisma.organization.update({
+  async updateOrganization(organizationId: string, data: { name?: string; logoUrl?: string; timezone?: string; currency?: string }, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
+    // Récupérer l'état avant pour l'audit log
+    const beforeOrg = await this.prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    const updated = await this.prisma.organization.update({
       where: { id: organizationId },
       data,
     });
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action: 'UPDATE',
+      entityType: 'SETTINGS',
+      entityId: organizationId,
+      before: {
+        name: beforeOrg?.name,
+        logoUrl: beforeOrg?.logoUrl,
+        timezone: beforeOrg?.timezone,
+        currency: beforeOrg?.currency,
+      },
+      after: {
+        name: updated.name,
+        logoUrl: updated.logoUrl,
+        timezone: updated.timezone,
+        currency: updated.currency,
+      },
+      reqMeta,
+    });
+
+    return updated;
   }
 }
 

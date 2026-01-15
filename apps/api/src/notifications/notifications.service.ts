@@ -14,6 +14,8 @@ import {
   SendWhatsAppJobData,
   CreateInAppNotificationJobData,
 } from './jobs/notifications.queue';
+import { MessageDeliveryService } from './services/message-delivery.service';
+import { createHash } from 'crypto';
 import {
   PaginationQueryDto,
   buildOrderBy,
@@ -34,7 +36,55 @@ export class NotificationsService {
     private calendarIcsService: CalendarIcsService,
     private configService: ConfigService,
     private queueService: QueueService,
+    private messageDeliveryService: MessageDeliveryService,
   ) {}
+
+  /**
+   * Generate stable jobId for deduplication
+   * Format: "delivery:<orgId>:<hash>" or "delivery:<hash>" if no orgId
+   */
+  private generateJobId(
+    organizationId: string | undefined,
+    jobType: NotificationJobType,
+    data: SendEmailJobData | SendSmsJobData | SendWhatsAppJobData,
+  ): string {
+    // Create payload for hashing
+    let payload: any;
+    if (jobType === NotificationJobType.SEND_EMAIL) {
+      const emailData = data as SendEmailJobData;
+      payload = {
+        type: 'EMAIL',
+        to: emailData.to,
+        subject: emailData.subject,
+        html: emailData.html,
+        text: emailData.text,
+        from: this.configService.get<string>('EMAIL_FROM') || 'noreply@klozd.com',
+      };
+    } else if (jobType === NotificationJobType.SEND_SMS) {
+      const smsData = data as SendSmsJobData;
+      payload = {
+        type: 'SMS',
+        to: smsData.to,
+        message: smsData.message,
+        from: this.configService.get<string>('TWILIO_PHONE_NUMBER') || this.configService.get<string>('SMS_FROM'),
+      };
+    } else if (jobType === NotificationJobType.SEND_WHATSAPP) {
+      const whatsappData = data as SendWhatsAppJobData;
+      payload = {
+        type: 'WHATSAPP',
+        to: whatsappData.to,
+        message: whatsappData.message,
+        from: this.configService.get<string>('TWILIO_WHATSAPP_NUMBER') || this.configService.get<string>('WHATSAPP_FROM'),
+      };
+    } else {
+      // Fallback: use JSON string of data
+      payload = data;
+    }
+
+    const hash = this.messageDeliveryService.computePayloadHash(payload);
+    const orgPart = organizationId ? `${organizationId}:` : '';
+    return `delivery:${orgPart}${hash.substring(0, 16)}`;
+  }
 
   /**
    * Envoie une confirmation de RDV (email + optionnel SMS/WhatsApp)
@@ -204,10 +254,16 @@ export class NotificationsService {
       };
 
       if (this.queueService.isEnabled()) {
+        const jobId = this.generateJobId(
+          appointment.lead.organizationId,
+          NotificationJobType.SEND_WHATSAPP,
+          whatsappJobData,
+        );
         await this.queueService.addJob(
           QUEUE_NAMES.NOTIFICATIONS,
           NotificationJobType.SEND_WHATSAPP,
           whatsappJobData,
+          { jobId }, // Stable jobId for deduplication
         );
       } else {
         await this.whatsappService.sendWhatsApp(whatsappJobData.to, whatsappJobData.message);

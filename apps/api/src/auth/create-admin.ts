@@ -52,14 +52,9 @@ async function createAdmin() {
         data: {
           name: 'KLOZD Internal',
           slug: 'klozd-internal',
-          settings: {
-            create: {
-              subscriptionPlan: 'enterprise',
-              monthlyPrice: 0,
-            },
-          },
         },
       });
+      console.log('✅ Organisation "KLOZD Internal" créée');
     }
 
     // Créer l'utilisateur admin

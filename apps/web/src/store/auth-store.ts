@@ -8,6 +8,7 @@ interface AuthState {
   isAuthenticated: boolean;
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
+  setToken: (token: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (data: {
     email: string;
@@ -16,7 +17,8 @@ interface AuthState {
     lastName: string;
     organizationName: string;
   }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(

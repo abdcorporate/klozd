@@ -10,6 +10,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { SettingsModule } from '../settings/settings.module';
 import { SchedulingModule } from '../scheduling/scheduling.module';
 import { CommonModule } from '../common/common.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CommonModule } from '../common/common.module';
     FormsModule,
     NotificationsModule,
     SettingsModule,
+    AuthModule,
     ScheduleModule.forRoot(),
     forwardRef(() => SchedulingModule),
   ],

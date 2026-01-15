@@ -1,9 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { SubmitFormDto } from './dto/leads.dto';
 import { ScoringService } from './services/scoring.service';
 import { PricingService } from '../settings/pricing.service';
 import { AttributionService } from '../scheduling/services/attribution.service';
+import { AuditLogService } from '../common/services/audit-log.service';
 import {
   PaginationQueryDto,
   buildOrderBy,
@@ -16,10 +19,12 @@ import {
 export class LeadsService {
   constructor(
     private prisma: PrismaService,
+    private tenantPrisma: TenantPrismaService,
     private scoringService: ScoringService,
     private pricingService: PricingService,
     @Inject(forwardRef(() => AttributionService))
     private attributionService: AttributionService,
+    private auditLogService: AuditLogService,
   ) {}
 
   async submitForm(organizationId: string, formId: string, submitFormDto: SubmitFormDto) {
@@ -40,8 +45,8 @@ export class LeadsService {
       });
 
       if (currentLeadsCount >= settings.maxLeadsPerMonth) {
-        throw new ForbiddenException(
-          `Quota de leads mensuel atteint (${settings.maxLeadsPerMonth}). Veuillez passer à un plan supérieur.`,
+        throw new ThrottlerException(
+          `Quota de leads mensuel atteint (${currentLeadsCount}/${settings.maxLeadsPerMonth}). Veuillez passer à un plan supérieur.`,
         );
       }
     }
@@ -383,21 +388,25 @@ export class LeadsService {
   }
 
   async findOne(id: string, organizationId: string) {
-    const lead = await this.prisma.lead.findFirst({
-      where: { id, organizationId },
-      include: {
-        assignedCloser: true,
-        form: true,
-        submissions: true,
-        appointments: {
-          orderBy: { scheduledAt: 'desc' },
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    const lead = await this.tenantPrisma.lead.findFirst(
+      {
+        where: { id },
+        include: {
+          assignedCloser: true,
+          form: true,
+          submissions: true,
+          appointments: {
+            orderBy: { scheduledAt: 'desc' },
+          },
+          deals: {
+            orderBy: { createdAt: 'desc' },
+          },
+          aiPrediction: true,
         },
-        deals: {
-          orderBy: { createdAt: 'desc' },
-        },
-        aiPrediction: true,
       },
-    });
+      organizationId,
+    );
 
     if (!lead) {
       throw new NotFoundException('Lead non trouvé');
@@ -523,7 +532,7 @@ export class LeadsService {
     return abandon;
   }
 
-  async update(id: string, organizationId: string, updateData: any, userRole?: string, userId?: string) {
+  async update(id: string, organizationId: string, updateData: any, userRole?: string, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     // Vérifier que le lead existe et appartient à l'organisation
     const lead = await this.prisma.lead.findFirst({
       where: {
@@ -563,6 +572,17 @@ export class LeadsService {
       updateFields.assignedCloserId = updateData.assignedCloserId;
     }
 
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = {
+      status: lead.status,
+      assignedCloserId: lead.assignedCloserId,
+      assignedSetterId: lead.assignedSetterId,
+      qualificationScore: lead.qualificationScore,
+      budget: lead.budget,
+      sector: lead.sector,
+      urgency: lead.urgency,
+    };
+
     // Mettre à jour le lead
     const updatedLead = await this.prisma.lead.update({
       where: { id },
@@ -580,6 +600,36 @@ export class LeadsService {
         deals: true,
         aiPrediction: true,
       },
+    });
+
+    // Déterminer l'action pour l'audit log
+    let action = 'UPDATE';
+    if (updateData.status === 'QUALIFIED' && lead.status !== 'QUALIFIED') {
+      action = 'QUALIFY';
+    } else if (updateData.status === 'DISQUALIFIED' && lead.status !== 'DISQUALIFIED') {
+      action = 'DISQUALIFY';
+    } else if (updateData.assignedCloserId !== undefined && updateData.assignedCloserId !== lead.assignedCloserId) {
+      action = 'ASSIGN';
+    }
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action,
+      entityType: 'LEAD',
+      entityId: id,
+      before: beforeState,
+      after: {
+        status: updatedLead.status,
+        assignedCloserId: updatedLead.assignedCloserId,
+        assignedSetterId: updatedLead.assignedSetterId,
+        qualificationScore: updatedLead.qualificationScore,
+        budget: updatedLead.budget,
+        sector: updatedLead.sector,
+        urgency: updatedLead.urgency,
+      },
+      reqMeta,
     });
 
     return updatedLead;
@@ -639,10 +689,28 @@ export class LeadsService {
         };
       }
 
+      // Sauvegarder l'état avant pour l'audit log
+      const beforeState = {
+        assignedCloserId: lead.assignedCloserId,
+      };
+
       // Mettre à jour le lead avec le closer assigné
       const updatedLead = await this.prisma.lead.update({
         where: { id: leadId },
         data: { assignedCloserId: assignedCloser.id },
+      });
+
+      // Audit log
+      await this.auditLogService.logChange({
+        actor: null, // Attribution automatique (système)
+        orgId: lead.organizationId,
+        action: 'ASSIGN',
+        entityType: 'LEAD',
+        entityId: leadId,
+        before: beforeState,
+        after: {
+          assignedCloserId: updatedLead.assignedCloserId,
+        },
       });
 
       return {

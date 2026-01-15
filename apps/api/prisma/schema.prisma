@@ -56,6 +56,8 @@ model Organization {
   invitations    Invitation[]
   sites          Site[]
   calendarConfig CalendarConfig?
+  auditLogs      AuditLog[]
+  messageDeliveries MessageDelivery[]
 
   @@index([slug])
 }
@@ -91,6 +93,8 @@ model User {
   createdDeals          Deal[]
   notifications         Notification[]
   callParticipants      CallParticipant[]
+  refreshTokens         RefreshToken[]
+  auditLogs            AuditLog[]
 
   @@index([organizationId])
   @@index([email])
@@ -773,22 +777,81 @@ model AuthAttempt {
 // IDEMPOTENCY
 // ============================================
 
-model IdempotencyRecord {
+model IdempotencyKey {
   id               String   @id @default(cuid())
   key              String // Idempotency-Key header value (UUID)
-  route            String // Route path (e.g., "/leads/forms/:formId/submit")
+  scope            String // Scope/route path (e.g., "form_submit", "/leads/forms/:formId/submit")
   requestHash      String // Hash of request body for conflict detection
   responseStatus   Int // HTTP status code of stored response
-  responseBodyJson String   @db.Text // JSON string of stored response
+  responseJson     String   @db.Text // JSON string of stored response
+  status           String   @default("PENDING") // PENDING, COMPLETED, FAILED
   createdAt        DateTime @default(now())
-  expiresAt        DateTime // TTL: 24 hours from creation
+  expiresAt        DateTime // TTL: 24 hours from creation (configurable)
   organizationId   String? // Optional: for org-scoped idempotency
-  ip               String? // Optional: IP address for logging
 
-  @@unique([key, route])
+  @@unique([key, scope])
   @@index([expiresAt])
   @@index([organizationId])
-  @@map("idempotency_records")
+  @@index([status])
+  @@map("idempotency_keys")
+}
+
+// ============================================
+// MESSAGE DELIVERY (Deduplication for notifications)
+// ============================================
+
+enum MessageProvider {
+  RESEND
+  SENDGRID
+  TWILIO
+  WHATSAPP
+}
+
+enum MessageChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum MessageDeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+model MessageDelivery {
+  id              String                @id @default(cuid())
+  organizationId  String? // Optional: for org-scoped deduplication
+  organization    Organization?         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider        MessageProvider
+  channel         MessageChannel
+  to              String // Recipient (email or phone)
+  templateKey     String? // Template identifier (e.g., 'appointment-confirmation', 'abandon-recovery')
+  payloadHash     String // Hash of payload for deduplication (canonical JSON)
+  status          MessageDeliveryStatus @default(PENDING)
+  providerMessageId String? // External provider message ID (e.g., Resend ID, Twilio SID)
+  errorCode       String? // Error code if failed (e.g., 'RATE_LIMIT', 'INVALID_RECIPIENT')
+  errorMessage    String? @db.Text // Error message if failed
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Metadata
+  metadataJson    String? @db.Text // JSON with additional metadata
+
+  // Unique constraint: same org, channel, to, templateKey, payloadHash = same delivery
+  @@unique([organizationId, channel, to, templateKey, payloadHash])
+  @@index([status])
+  @@index([channel])
+  @@index([provider])
+  @@index([organizationId])
+  @@index([createdAt])
+  @@index([to])
+  @@index([templateKey])
+  @@map("message_deliveries")
 }
 
 // ============================================
@@ -810,4 +873,78 @@ model FailedJob {
   @@index([jobName])
   @@index([createdAt])
   @@map("failed_jobs")
+}
+
+// ============================================
+// REFRESH TOKENS
+// ============================================
+
+model RefreshToken {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    // Hash du refresh token (bcrypt ou sha256 + salt)
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime  // Date d'expiration (7-30 jours)
+  revokedAt     DateTime? // Date de révocation (si logout ou rotation)
+  replacedById  String?   // ID du refresh token qui a remplacé celui-ci (rotation)
+  replacedBy    RefreshToken? @relation("RefreshTokenReplacement", fields: [replacedById], references: [id])
+  replacedTokens RefreshToken[] @relation("RefreshTokenReplacement")
+  userAgent     String?   // User-Agent du navigateur
+  ip            String?   // Adresse IP
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+model AuditLog {
+  id            String    @id @default(cuid())
+  organizationId String
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUserId   String?  // ID de l'utilisateur qui a effectué l'action (null si système)
+  actor         User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action        String   // Action effectuée (CREATE, UPDATE, DELETE, ASSIGN, QUALIFY, DISQUALIFY, PUBLISH, etc.)
+  entityType    String   // Type d'entité (LEAD, FORM, APPOINTMENT, USER, SETTINGS, etc.)
+  entityId      String   // ID de l'entité concernée
+  beforeJson    String?  @db.Text // État avant (JSON)
+  afterJson     String?  @db.Text // État après (JSON)
+  ip            String?  // Adresse IP
+  userAgent     String?  // User-Agent
+  createdAt     DateTime  @default(now())
+
+  @@index([organizationId])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// WAITLIST
+// ============================================
+
+model WaitlistEntry {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  firstName        String?
+  role             String?  // Role de l'utilisateur (ex: "infopreneur", "closer", etc.)
+  leadVolumeRange  String?  // Volume de leads (ex: "0-50", "50-200", "200+")
+  utmSource        String?  // UTM source
+  utmMedium        String?  // UTM medium
+  utmCampaign      String?  // UTM campaign
+  ip               String?  // Adresse IP
+  userAgent        String?  @db.Text // User-Agent
+  createdAt        DateTime @default(now())
+
+  @@index([email])
+  @@index([createdAt])
+  @@map("waitlist_entries")
 }

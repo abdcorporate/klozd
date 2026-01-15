@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, UseGuards, Req } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { PricingService } from './pricing.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -7,6 +7,7 @@ import { UpdateOrganizationSettingsDto, UpdateOrganizationDto } from './dto/sett
 import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Permission } from '../auth/permissions/permissions';
+import { IpDetectionService } from '../common/services/ip-detection.service';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -14,6 +15,7 @@ export class SettingsController {
   constructor(
     private readonly settingsService: SettingsService,
     private readonly pricingService: PricingService,
+    private readonly ipDetectionService: IpDetectionService,
   ) {}
 
   @Get()
@@ -27,8 +29,13 @@ export class SettingsController {
   updateSettings(
     @CurrentUser() user: any,
     @Body() updateDto: UpdateOrganizationSettingsDto,
+    @Req() req: any,
   ) {
-    return this.settingsService.updateSettings(user.organizationId, updateDto);
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.settingsService.updateSettings(user.organizationId, updateDto, user.id, reqMeta);
   }
 
   @Patch('organization')
@@ -36,8 +43,13 @@ export class SettingsController {
   updateOrganization(
     @CurrentUser() user: any,
     @Body() updateDto: UpdateOrganizationDto,
+    @Req() req: any,
   ) {
-    return this.settingsService.updateOrganization(user.organizationId, updateDto);
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.settingsService.updateOrganization(user.organizationId, updateDto, user.id, reqMeta);
   }
 
   @Get('pricing/plans')

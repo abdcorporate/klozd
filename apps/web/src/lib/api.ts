@@ -7,23 +7,108 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Important pour envoyer les cookies (refresh token)
 });
 
-// Intercepteur pour ajouter le token JWT
-api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// Access token en mémoire (pas dans localStorage)
+let accessToken: string | null = null;
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (error?: any) => void;
+}> = [];
+
+// CSRF token en mémoire
+let csrfToken: string | null = null;
+let isFetchingCsrf = false;
+let csrfQueue: Array<{
+  resolve: (value?: any) => void;
+  reject: (error?: any) => void;
+}> = [];
+
+// Fonction pour traiter la queue des requêtes en attente
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+/**
+ * Fetch CSRF token from server
+ */
+async function fetchCsrfToken(): Promise<string> {
+  if (csrfToken) {
+    return csrfToken;
+  }
+
+  if (isFetchingCsrf) {
+    // Wait for ongoing CSRF fetch
+    return new Promise((resolve, reject) => {
+      csrfQueue.push({ resolve, reject });
+    });
+  }
+
+  isFetchingCsrf = true;
+
+  try {
+    const response = await axios.get(`${API_URL}/auth/csrf`, {
+      withCredentials: true,
+    });
+    
+    csrfToken = response.data.csrfToken;
+    
+    // Process queue
+    csrfQueue.forEach((prom) => prom.resolve(csrfToken));
+    csrfQueue = [];
+    
+    return csrfToken!;
+  } catch (error) {
+    // Process queue with error
+    csrfQueue.forEach((prom) => prom.reject(error));
+    csrfQueue = [];
+    throw error;
+  } finally {
+    isFetchingCsrf = false;
+  }
+}
+
+// Intercepteur pour ajouter le token JWT et CSRF
+api.interceptors.request.use(async (config) => {
+  // Utiliser le token en mémoire (pas localStorage)
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  // Add CSRF token for protected endpoints
+  const isCsrfProtectedEndpoint =
+    config.url?.includes('/auth/refresh') ||
+    config.url?.includes('/auth/logout') ||
+    (config.url?.includes('/auth/login') && config.method === 'post');
+
+  if (isCsrfProtectedEndpoint) {
+    try {
+      const token = await fetchCsrfToken();
+      config.headers['X-CSRF-Token'] = token;
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error);
+      // Continue anyway, backend will reject if needed
     }
   }
+
   return config;
 });
 
-// Intercepteur pour gérer les erreurs
+// Intercepteur pour gérer les erreurs et refresh automatique
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
     // Erreur réseau (API non accessible)
     if (!error.response) {
       console.error('Erreur réseau:', error.message);
@@ -33,17 +118,79 @@ api.interceptors.response.use(
     }
 
     // Ne pas rediriger automatiquement pour les erreurs 401 lors de l'inscription/connexion
-    // (ces endpoints sont publics et peuvent renvoyer 401 pour "email déjà utilisé" ou "mauvais identifiants")
-    const isAuthEndpoint = error.config?.url?.includes('/auth/register') || error.config?.url?.includes('/auth/login');
-    
-    if (error.response?.status === 401 && !isAuthEndpoint) {
-      // Rediriger seulement si ce n'est pas un endpoint d'authentification
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
+    const isAuthEndpoint =
+      originalRequest?.url?.includes('/auth/register') ||
+      originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/refresh');
+
+    // Si 401 et pas un endpoint d'auth, essayer de refresh
+    if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retry) {
+      if (isRefreshing) {
+        // Si déjà en train de refresh, mettre en queue
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        // Fetch CSRF token before refresh
+        const csrf = await fetchCsrfToken();
+        
+        // Appeler /auth/refresh (cookie sera envoyé automatiquement avec withCredentials: true)
+        const response = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          {
+            withCredentials: true,
+            headers: {
+              'X-CSRF-Token': csrf,
+            },
+          },
+        );
+
+        const newAccessToken = response.data.accessToken;
+        accessToken = newAccessToken;
+
+        // Mettre à jour le store si disponible
+        if (typeof window !== 'undefined') {
+          const { useAuthStore } = await import('@/store/auth-store');
+          const store = useAuthStore.getState();
+          store.setToken?.(newAccessToken);
+        }
+
+        // Traiter la queue
+        processQueue(null, newAccessToken);
+
+        // Réessayer la requête originale
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        // Refresh échoué, rediriger vers login
+        processQueue(refreshError, null);
+        accessToken = null;
+
+        if (typeof window !== 'undefined') {
+          const { useAuthStore } = await import('@/store/auth-store');
+          useAuthStore.getState().logout();
+          window.location.href = '/login';
+        }
+
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
+
     return Promise.reject(error);
   },
 );
@@ -64,6 +211,14 @@ export interface AuthResponse {
   user: User;
 }
 
+// Fonction pour définir le token en mémoire
+export const setAccessToken = (token: string | null) => {
+  accessToken = token;
+};
+
+// Fonction pour obtenir le token en mémoire
+export const getAccessToken = () => accessToken;
+
 // API Methods
 export const authApi = {
   register: (data: {
@@ -76,6 +231,22 @@ export const authApi = {
   
   login: (data: { email: string; password: string }) =>
     api.post<AuthResponse>('/auth/login', data),
+  
+  refresh: async () => {
+    // Ensure CSRF token is fetched before refresh
+    await fetchCsrfToken();
+    return api.post<{ accessToken: string }>('/auth/refresh');
+  },
+  
+  logout: async () => {
+    // Ensure CSRF token is fetched before logout
+    await fetchCsrfToken();
+    return api.post('/auth/logout');
+  },
+  
+  getCsrfToken: () => fetchCsrfToken(),
+  
+  me: () => api.get<AuthResponse>('/auth/me'),
 };
 
 export const formsApi = {
@@ -217,6 +388,21 @@ export const webhooksApi = {
   create: (data: any) => api.post('/webhooks', data),
   update: (id: string, data: any) => api.patch(`/webhooks/${id}`, data),
   delete: (id: string) => api.delete(`/webhooks/${id}`),
+};
+
+export const adminWaitlistApi = {
+  getEntries: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    return api.get(`/admin/waitlist?${queryParams.toString()}`);
+  },
+  getStats: () => api.get('/admin/waitlist/stats'),
 };
 
 export const apiKeysApi = {

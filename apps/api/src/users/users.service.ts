@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
 import { canCreateUserWithRole } from '../auth/permissions/permissions';
 import { PricingService } from '../settings/pricing.service';
+import { AuditLogService } from '../common/services/audit-log.service';
 import {
   PaginationQueryDto,
   buildOrderBy,
@@ -18,9 +19,10 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private pricingService: PricingService,
+    private auditLogService: AuditLogService,
   ) {}
 
-  async create(organizationId: string, creatorRole: UserRole, createUserDto: CreateUserDto) {
+  async create(organizationId: string, creatorRole: UserRole, createUserDto: CreateUserDto, creatorId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     // Vérifier que le créateur peut créer ce type d'utilisateur
     if (!canCreateUserWithRole(creatorRole, createUserDto.role)) {
       throw new ForbiddenException(
@@ -81,6 +83,22 @@ export class UsersService {
     });
 
     // Note: Les équipes ne sont plus utilisées, les managers voient tous les closers/setters de leur organisation
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: creatorId ? { id: creatorId } : null,
+      orgId: organizationId,
+      action: 'CREATE',
+      entityType: 'USER',
+      entityId: user.id,
+      before: null,
+      after: {
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
+      reqMeta,
+    });
 
     return user;
   }
@@ -248,8 +266,14 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, organizationId: string, creatorRole: UserRole, updateUserDto: UpdateUserDto) {
+  async update(id: string, organizationId: string, creatorRole: UserRole, updateUserDto: UpdateUserDto, creatorId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     const user = await this.findOne(id, organizationId, creatorRole);
+
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = {
+      role: user.role,
+      status: user.status,
+    };
 
     // Vérifier les permissions pour changer le rôle
     if (updateUserDto.role && updateUserDto.role !== user.role) {
@@ -267,7 +291,7 @@ export class UsersService {
       updateData.password = await bcrypt.hash(updateUserDto.password, 10);
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: updateData,
       select: {
@@ -280,6 +304,29 @@ export class UsersService {
         createdAt: true,
       },
     });
+
+    // Déterminer l'action pour l'audit log
+    let action = 'UPDATE';
+    if (updateUserDto.role && updateUserDto.role !== user.role) {
+      action = 'ROLE_CHANGE';
+    }
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: creatorId ? { id: creatorId } : null,
+      orgId: organizationId,
+      action,
+      entityType: 'USER',
+      entityId: id,
+      before: beforeState,
+      after: {
+        role: updated.role,
+        status: updated.status,
+      },
+      reqMeta,
+    });
+
+    return updated;
   }
 
   async remove(id: string, organizationId: string, creatorRole?: UserRole) {
@@ -296,20 +343,52 @@ export class UsersService {
     });
   }
 
-  async activate(id: string, organizationId: string, creatorRole?: UserRole) {
-    await this.findOne(id, organizationId, creatorRole);
-    return this.prisma.user.update({
+  async activate(id: string, organizationId: string, creatorRole?: UserRole, creatorId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
+    const user = await this.findOne(id, organizationId, creatorRole);
+    const beforeState = { status: user.status };
+    
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { status: 'ACTIVE' },
     });
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: creatorId ? { id: creatorId } : null,
+      orgId: organizationId,
+      action: 'ACTIVATE',
+      entityType: 'USER',
+      entityId: id,
+      before: beforeState,
+      after: { status: updated.status },
+      reqMeta,
+    });
+
+    return updated;
   }
 
-  async deactivate(id: string, organizationId: string, creatorRole?: UserRole) {
-    await this.findOne(id, organizationId, creatorRole);
-    return this.prisma.user.update({
+  async deactivate(id: string, organizationId: string, creatorRole?: UserRole, creatorId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
+    const user = await this.findOne(id, organizationId, creatorRole);
+    const beforeState = { status: user.status };
+    
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { status: 'INACTIVE' },
     });
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: creatorId ? { id: creatorId } : null,
+      orgId: organizationId,
+      action: 'DEACTIVATE',
+      entityType: 'USER',
+      entityId: id,
+      before: beforeState,
+      after: { status: updated.status },
+      reqMeta,
+    });
+
+    return updated;
   }
 }
 

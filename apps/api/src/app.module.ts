@@ -22,7 +22,10 @@ import { SitesModule } from './sites/sites.module';
 import { CalendarConfigModule } from './calendar-config/calendar-config.module';
 import { QueueModule } from './queue/queue.module';
 import { AdminJobsModule } from './admin/jobs/admin-jobs.module';
+import { AdminAuditLogsModule } from './admin/audit-logs/admin-audit-logs.module';
+import { AdminWaitlistModule } from './admin/waitlist/admin-waitlist.module';
 import { HealthModule } from './health/health.module';
+import { WaitlistModule } from './waitlist/waitlist.module';
 import { SentryModule } from './common/sentry/sentry.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
@@ -101,7 +104,10 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CalendarConfigModule,
     QueueModule,
     AdminJobsModule,
+    AdminAuditLogsModule,
+    AdminWaitlistModule,
     HealthModule,
+    WaitlistModule,
     SentryModule,
   ],
   controllers: [AppController],

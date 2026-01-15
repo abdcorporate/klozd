@@ -2,18 +2,31 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Vérifier le token dans localStorage via cookie ou header
-  // Note: localStorage n'est pas accessible dans middleware, on vérifie juste les routes
   const { pathname } = request.nextUrl;
 
   // Routes publiques
-  const publicRoutes = ['/login', '/register'];
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const publicRoutes = ['/login', '/register', '/pages/public', '/book'];
+  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
-  // Le middleware ne peut pas accéder à localStorage
-  // La vérification d'authentification se fait côté client dans les pages
-  // On laisse passer toutes les requêtes, la protection se fait dans les composants
-  
+  // Routes protégées
+  const protectedRoutes = ['/dashboard', '/forms', '/leads', '/pages', '/sites', '/scheduling', '/settings', '/users', '/invitations'];
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
+
+  // Si route protégée, vérifier le cookie refreshToken
+  if (isProtectedRoute && !isPublicRoute) {
+    const refreshToken = request.cookies.get('refreshToken');
+
+    if (!refreshToken) {
+      // Pas de refresh token, rediriger vers login
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Le refresh token existe, laisser passer
+    // La vérification complète se fera côté client via /auth/me
+  }
+
   return NextResponse.next();
 }
 

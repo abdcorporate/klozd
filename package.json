@@ -6,7 +6,9 @@
   "scripts": {
     "dev:web": "pnpm --filter web run dev",
     "dev:api": "pnpm --filter api run start:dev",
-    "dev": "concurrently \"pnpm run dev:web\" \"pnpm run dev:api\""
+    "dev:marketing": "pnpm --filter marketing run dev",
+    "dev": "concurrently \"pnpm run dev:web\" \"pnpm run dev:api\"",
+    "dev:all": "concurrently -n \"API,WEB,MARKETING\" -c \"blue,green,yellow\" \"pnpm run dev:api\" \"pnpm run dev:web\" \"pnpm run dev:marketing\""
   },
   "keywords": [],
   "author": "",

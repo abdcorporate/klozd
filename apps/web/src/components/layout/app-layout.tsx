@@ -20,15 +20,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
-  const isActive = (path: string) => pathname === path;
+  const isActive = (path: string) => pathname === path || pathname?.startsWith(path + '/');
 
       const navItems = [
         { path: '/dashboard', label: 'Dashboard', roles: ['ADMIN', 'MANAGER', 'CLOSER', 'SETTER', 'SUPER_ADMIN'] },
-        { path: '/pages', label: 'Pages', roles: ['ADMIN', 'SUPER_ADMIN'] },
-        { path: '/leads', label: 'Leads', roles: ['ADMIN', 'SETTER', 'MANAGER', 'SUPER_ADMIN'] },
+        { path: '/pages', label: 'Pages', roles: ['ADMIN'] },
+        { path: '/leads', label: 'Leads', roles: ['ADMIN', 'SETTER', 'MANAGER'] },
         { path: '/scheduling', label: 'Calendrier', roles: ['ADMIN', 'CLOSER', 'MANAGER'] },
         { path: '/organizations', label: 'Organisations', roles: ['SUPER_ADMIN'] },
         { path: '/users', label: 'Utilisateurs', roles: ['ADMIN', 'MANAGER', 'SUPER_ADMIN'] },
+        { path: '/waitlist', label: 'Waitlist', roles: ['SUPER_ADMIN'] },
         { path: '/settings', label: 'Paramètres', roles: ['ADMIN', 'MANAGER', 'CLOSER', 'SETTER'] },
       ].filter((item) => item.roles.includes(user.role));
 

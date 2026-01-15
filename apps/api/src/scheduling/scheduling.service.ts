@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { AttributionService } from './services/attribution.service';
 import { VisioService } from './services/visio.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateAppointmentDto, UpdateAppointmentDto } from './dto/scheduling.dto';
+import { AuditLogService } from '../common/services/audit-log.service';
 import {
   PaginationQueryDto,
   buildOrderBy,
@@ -14,18 +16,24 @@ import {
 
 @Injectable()
 export class SchedulingService {
+  private readonly logger = new Logger(SchedulingService.name);
+
   constructor(
     private prisma: PrismaService,
+    private tenantPrisma: TenantPrismaService,
     private attributionService: AttributionService,
     private visioService: VisioService,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
+    private auditLogService: AuditLogService,
   ) {}
 
   async createAppointment(
     organizationId: string,
     leadId: string,
     createAppointmentDto: CreateAppointmentDto,
+    userId?: string,
+    reqMeta?: { ip?: string; userAgent?: string },
   ) {
     // Vérifier que le lead existe
     const lead = await this.prisma.lead.findFirst({
@@ -125,6 +133,24 @@ export class SchedulingService {
 
     // La confirmation T+0 sera envoyée automatiquement par le cron job
     // (voir scheduling-tasks.service.ts)
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action: 'CREATE',
+      entityType: 'APPOINTMENT',
+      entityId: appointment.id,
+      before: null,
+      after: {
+        leadId: appointment.leadId,
+        assignedCloserId: appointment.assignedCloserId,
+        scheduledAt: appointment.scheduledAt,
+        duration: appointment.duration,
+        status: appointment.status,
+      },
+      reqMeta,
+    });
 
     return appointment;
   }
@@ -269,28 +295,29 @@ export class SchedulingService {
   }
 
   async findOne(id: string, organizationId: string) {
-    const appointment = await this.prisma.appointment.findFirst({
-      where: {
-        id,
-        lead: {
-          organizationId,
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    return this.tenantPrisma.appointment.findUnique(
+      {
+        where: { id },
+        include: {
+          lead: true,
+          assignedCloser: true,
         },
       },
-      include: {
-        lead: true,
-        assignedCloser: true,
-      },
-    });
-
-    if (!appointment) {
-      throw new NotFoundException('Rendez-vous non trouvé');
-    }
-
-    return appointment;
+      organizationId,
+    );
   }
 
-  async update(id: string, organizationId: string, updateAppointmentDto: UpdateAppointmentDto) {
+  async update(id: string, organizationId: string, updateAppointmentDto: UpdateAppointmentDto, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     const appointment = await this.findOne(id, organizationId);
+
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = {
+      status: appointment.status,
+      scheduledAt: appointment.scheduledAt,
+      duration: appointment.duration,
+      assignedCloserId: appointment.assignedCloserId,
+    };
 
     // Convertir les strings en enums si nécessaire
     const updateData: any = { ...updateAppointmentDto };
@@ -303,68 +330,144 @@ export class SchedulingService {
 
     // Si le closer est modifié, mettre à jour aussi le lead
     if (updateData.assignedCloserId !== undefined) {
-      await this.prisma.lead.update({
-        where: { id: appointment.leadId },
-        data: { assignedCloserId: updateData.assignedCloserId },
-      });
+      await this.tenantPrisma.lead.update(
+        {
+          where: { id: appointment.leadId },
+          data: { assignedCloserId: updateData.assignedCloserId },
+        },
+        organizationId,
+      );
     }
 
-    return this.prisma.appointment.update({
-      where: { id },
-      data: updateData,
-      include: {
-        lead: true,
-        assignedCloser: true,
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    const updated = await this.tenantPrisma.appointment.update(
+      {
+        where: { id },
+        data: updateData,
+        include: {
+          lead: true,
+          assignedCloser: true,
+        },
       },
-    });
-  }
+      organizationId,
+    );
 
-  async markCompleted(id: string, organizationId: string, outcome: string) {
-    const appointment = await this.findOne(id, organizationId);
+    // Déterminer l'action pour l'audit log
+    let action = 'UPDATE';
+    if (updateData.status === 'CANCELLED' && appointment.status !== 'CANCELLED') {
+      action = 'CANCEL';
+    }
 
-    const updated = await this.prisma.appointment.update({
-      where: { id },
-      data: {
-        status: 'COMPLETED',
-        outcome,
-        completedAt: new Date(),
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action,
+      entityType: 'APPOINTMENT',
+      entityId: id,
+      before: beforeState,
+      after: {
+        status: updated.status,
+        scheduledAt: updated.scheduledAt,
+        duration: updated.duration,
+        assignedCloserId: updated.assignedCloserId,
       },
+      reqMeta,
     });
-
-    // Mettre à jour le statut du lead
-    await this.prisma.lead.update({
-      where: { id: appointment.leadId },
-      data: { status: 'APPOINTMENT_COMPLETED' },
-    });
-
 
     return updated;
   }
 
-  async markNoShow(id: string, organizationId: string) {
+  async markCompleted(id: string, organizationId: string, outcome: string, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
     const appointment = await this.findOne(id, organizationId);
 
-    // Mettre à jour le statut de l'appointment
-    const updated = await this.prisma.appointment.update({
-      where: { id },
-      data: {
-        status: 'NO_SHOW',
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = {
+      status: appointment.status,
+    };
+
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    const updated = await this.tenantPrisma.appointment.update(
+      {
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          outcome,
+          completedAt: new Date(),
+        },
       },
-      include: {
-        lead: true,
+      organizationId,
+    );
+
+    // Mettre à jour le statut du lead
+    await this.tenantPrisma.lead.update(
+      {
+        where: { id: appointment.leadId },
+        data: { status: 'APPOINTMENT_COMPLETED' },
       },
+      organizationId,
+    );
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action: 'COMPLETE',
+      entityType: 'APPOINTMENT',
+      entityId: id,
+      before: beforeState,
+      after: {
+        status: updated.status,
+        outcome: updated.outcome,
+      },
+      reqMeta,
     });
 
-    const lead = updated.lead;
+    return updated;
+  }
+
+  async markNoShow(id: string, organizationId: string, userId?: string, reqMeta?: { ip?: string; userAgent?: string }) {
+    const appointment = await this.findOne(id, organizationId);
+
+    // Sauvegarder l'état avant pour l'audit log
+    const beforeState = {
+      status: appointment.status,
+    };
+
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    const updated = await this.tenantPrisma.appointment.update(
+      {
+        where: { id },
+        data: {
+          status: 'NO_SHOW',
+        },
+      },
+      organizationId,
+    );
+
+    // Récupérer le lead séparément
+    const lead = await this.tenantPrisma.lead.findUnique(
+      {
+        where: { id: updated.leadId },
+      },
+      organizationId,
+    );
+
+    if (!lead) {
+      throw new NotFoundException('Lead non trouvé');
+    }
 
     // Compter les no-shows précédents pour ce lead
-    const previousNoShows = await this.prisma.appointment.count({
-      where: {
-        leadId: lead.id,
-        status: 'NO_SHOW',
-        id: { not: id }, // Exclure le no-show actuel
+    const previousNoShows = await this.tenantPrisma.appointment.count(
+      {
+        where: {
+          leadId: lead.id,
+          status: 'NO_SHOW',
+          id: { not: id }, // Exclure le no-show actuel
+        },
       },
-    });
+      organizationId,
+    );
 
     // Réduire le score de priorité (si existe, sinon on le crée via une mise à jour)
     // Pour l'instant, on utilise le closingProbability comme proxy pour le score de priorité
@@ -375,30 +478,36 @@ export class SchedulingService {
     // Si c'est le 2ème no-show, disqualifier et blacklister le lead
     if (previousNoShows >= 1) {
       // 2ème no-show → disqualifier
-      await this.prisma.lead.update({
-        where: { id: lead.id },
-        data: {
-          status: 'DISQUALIFIED',
-          disqualifiedAt: new Date(),
-          disqualificationReason: '2 no-shows consécutifs - Lead blacklisté',
-          closingProbability: newPriority,
-          notes: lead.notes
-            ? `${lead.notes}\n\n[${new Date().toISOString()}] 2ème no-show détecté - Lead disqualifié et blacklisté`
-            : `[${new Date().toISOString()}] 2ème no-show détecté - Lead disqualifié et blacklisté`,
+      await this.tenantPrisma.lead.update(
+        {
+          where: { id: lead.id },
+          data: {
+            status: 'DISQUALIFIED',
+            disqualifiedAt: new Date(),
+            disqualificationReason: '2 no-shows consécutifs - Lead blacklisté',
+            closingProbability: newPriority,
+            notes: lead.notes
+              ? `${lead.notes}\n\n[${new Date().toISOString()}] 2ème no-show détecté - Lead disqualifié et blacklisté`
+              : `[${new Date().toISOString()}] 2ème no-show détecté - Lead disqualifié et blacklisté`,
+          },
         },
-      });
+        organizationId,
+      );
     } else {
       // 1er no-show → mettre à jour le statut et le score
-      await this.prisma.lead.update({
-        where: { id: lead.id },
-        data: {
-          status: 'DISQUALIFIED', // On peut créer un statut NO_SHOW si nécessaire
-          closingProbability: newPriority,
-          notes: lead.notes
-            ? `${lead.notes}\n\n[${new Date().toISOString()}] No-show détecté - Score réduit de -10`
-            : `[${new Date().toISOString()}] No-show détecté - Score réduit de -10`,
+      await this.tenantPrisma.lead.update(
+        {
+          where: { id: lead.id },
+          data: {
+            status: 'DISQUALIFIED', // On peut créer un statut NO_SHOW si nécessaire
+            closingProbability: newPriority,
+            notes: lead.notes
+              ? `${lead.notes}\n\n[${new Date().toISOString()}] No-show détecté - Score réduit de -10`
+              : `[${new Date().toISOString()}] No-show détecté - Score réduit de -10`,
+          },
         },
-      });
+        organizationId,
+      );
     }
 
     // Envoyer l'email J+0 immédiatement
@@ -407,6 +516,20 @@ export class SchedulingService {
     } catch (error) {
       this.logger.error(`Erreur lors de l'envoi de l'email J+0 pour le no-show ${id}:`, error);
     }
+
+    // Audit log
+    await this.auditLogService.logChange({
+      actor: userId ? { id: userId } : null,
+      orgId: organizationId,
+      action: 'NO_SHOW',
+      entityType: 'APPOINTMENT',
+      entityId: id,
+      before: beforeState,
+      after: {
+        status: updated.status,
+      },
+      reqMeta,
+    });
 
     return updated;
   }

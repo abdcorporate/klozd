@@ -1,10 +1,10 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createHash } from 'crypto';
 
 @Injectable()
 export class IdempotencyService {
-  private readonly TTL_HOURS = 24;
+  private readonly TTL_HOURS = parseInt(process.env.IDEMPOTENCY_TTL_HOURS || '24', 10);
 
   constructor(private prisma: PrismaService) {}
 
@@ -12,20 +12,20 @@ export class IdempotencyService {
    * Generate hash of request body for conflict detection
    */
   private hashRequest(body: any): string {
-    const jsonString = JSON.stringify(body);
+    const jsonString = JSON.stringify(body, Object.keys(body).sort());
     return createHash('sha256').update(jsonString).digest('hex');
   }
 
   /**
    * Check idempotency and return stored response if exists
    * @returns Stored response if found, null otherwise
+   * @throws ConflictException if same key with different request hash
    */
   async checkIdempotency(
     key: string,
-    route: string,
+    scope: string,
     requestBody: any,
     organizationId?: string,
-    ip?: string,
   ): Promise<{ status: number; body: any } | null> {
     // Clean up expired records first
     await this.cleanupExpired();
@@ -33,11 +33,11 @@ export class IdempotencyService {
     const requestHash = this.hashRequest(requestBody);
 
     // Find existing record
-    const existing = await this.prisma.idempotencyRecord.findUnique({
+    const existing = await this.prisma.idempotencyKey.findUnique({
       where: {
-        key_route: {
+        key_scope: {
           key,
-          route,
+          scope,
         },
       },
     });
@@ -49,11 +49,11 @@ export class IdempotencyService {
     // Check if expired
     if (existing.expiresAt < new Date()) {
       // Delete expired record
-      await this.prisma.idempotencyRecord.delete({
+      await this.prisma.idempotencyKey.delete({
         where: {
-          key_route: {
+          key_scope: {
             key,
-            route,
+            scope,
           },
         },
       });
@@ -65,11 +65,11 @@ export class IdempotencyService {
       // Return stored response
       return {
         status: existing.responseStatus,
-        body: JSON.parse(existing.responseBodyJson),
+        body: JSON.parse(existing.responseJson),
       };
     }
 
-    // Same key+route but different body hash => conflict
+    // Same key+scope but different body hash => conflict
     throw new ConflictException(
       'Idempotency-Key conflict: The same key was used with a different request body.',
     );
@@ -81,12 +81,11 @@ export class IdempotencyService {
    */
   async storeResponse(
     key: string,
-    route: string,
+    scope: string,
     requestBody: any,
     responseStatus: number,
     responseBody: any,
     organizationId?: string,
-    ip?: string,
   ): Promise<void> {
     const requestHash = this.hashRequest(requestBody);
     const expiresAt = new Date();
@@ -97,16 +96,16 @@ export class IdempotencyService {
       await this.prisma.$transaction(
         async (tx) => {
           // Try to create the record
-          await tx.idempotencyRecord.create({
+          await tx.idempotencyKey.create({
             data: {
               key,
-              route,
+              scope,
               requestHash,
               responseStatus,
-              responseBodyJson: JSON.stringify(responseBody),
+              responseJson: JSON.stringify(responseBody),
+              status: 'COMPLETED',
               expiresAt,
               organizationId: organizationId || null,
-              ip: ip || null,
             },
           });
         },
@@ -116,14 +115,14 @@ export class IdempotencyService {
       );
     } catch (error: any) {
       // Handle unique constraint violation (race condition)
-      if (error.code === 'P2002' || error.meta?.target?.includes('key_route')) {
+      if (error.code === 'P2002' || error.meta?.target?.includes('key_scope')) {
         // Unique violation: another request already created the record
         // Re-fetch the existing record and apply replay/conflict rules
-        const existing = await this.prisma.idempotencyRecord.findUnique({
+        const existing = await this.prisma.idempotencyKey.findUnique({
           where: {
-            key_route: {
+            key_scope: {
               key,
-              route,
+              scope,
             },
           },
         });
@@ -136,16 +135,16 @@ export class IdempotencyService {
         // Check if expired
         if (existing.expiresAt < new Date()) {
           // Record expired, delete and retry (but this shouldn't happen in practice)
-          await this.prisma.idempotencyRecord.delete({
+          await this.prisma.idempotencyKey.delete({
             where: {
-              key_route: {
+              key_scope: {
                 key,
-                route,
+                scope,
               },
             },
           });
           // Retry once
-          return this.storeResponse(key, route, requestBody, responseStatus, responseBody, organizationId, ip);
+          return this.storeResponse(key, scope, requestBody, responseStatus, responseBody, organizationId);
         }
 
         // Check if same request (same hash) - replay scenario
@@ -154,7 +153,7 @@ export class IdempotencyService {
           return;
         }
 
-        // Same key+route but different body hash => conflict
+        // Same key+scope but different body hash => conflict
         throw new ConflictException(
           'Idempotency-Key conflict: The same key was used with a different request body.',
         );
@@ -169,7 +168,7 @@ export class IdempotencyService {
    * Clean up expired idempotency records
    */
   async cleanupExpired(): Promise<number> {
-    const result = await this.prisma.idempotencyRecord.deleteMany({
+    const result = await this.prisma.idempotencyKey.deleteMany({
       where: {
         expiresAt: {
           lt: new Date(),
@@ -177,5 +176,22 @@ export class IdempotencyService {
       },
     });
     return result.count;
+  }
+
+  /**
+   * Validate idempotency key format (UUID v4)
+   */
+  validateIdempotencyKey(key: string | undefined): string {
+    if (!key) {
+      throw new BadRequestException('Idempotency-Key header is required');
+    }
+
+    // UUID v4 format validation
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidV4Regex.test(key)) {
+      throw new BadRequestException('Idempotency-Key must be a valid UUID v4');
+    }
+
+    return key;
   }
 }

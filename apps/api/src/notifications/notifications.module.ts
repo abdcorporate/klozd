@@ -5,6 +5,7 @@ import { EmailService } from './services/email.service';
 import { SmsService } from './services/sms.service';
 import { WhatsappService } from './services/whatsapp.service';
 import { CalendarIcsService } from './services/calendar-ics.service';
+import { MessageDeliveryService } from './services/message-delivery.service';
 import { NotificationsProcessor } from './jobs/notifications.processor';
 import { PrismaModule } from '../prisma/prisma.module';
 import { FailedJobService } from '../queue/failed-job.service';
@@ -18,6 +19,7 @@ import { FailedJobService } from '../queue/failed-job.service';
     SmsService,
     WhatsappService,
     CalendarIcsService,
+    MessageDeliveryService,
     NotificationsProcessor,
     FailedJobService,
   ],

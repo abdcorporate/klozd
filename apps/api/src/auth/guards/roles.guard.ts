@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Logger }
 import { Reflector } from '@nestjs/core';
 import { Permission, ROLE_PERMISSIONS } from '../permissions/permissions';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import { ROLES_KEY } from '../decorators/require-roles.decorator';
 
 const IS_PUBLIC_KEY = 'isPublic';
 
@@ -20,6 +21,27 @@ export class RolesGuard implements CanActivate {
     
     if (isPublic) {
       return true; // Endpoint public, pas de vérification de permissions
+    }
+
+    // Vérifier les rôles requis (si spécifiés)
+    const requiredRoles = this.reflector.get<string[]>(
+      ROLES_KEY,
+      context.getHandler(),
+    );
+
+    if (requiredRoles && requiredRoles.length > 0) {
+      const request = context.switchToHttp().getRequest();
+      const user = request.user;
+
+      if (!user) {
+        throw new ForbiddenException('Utilisateur non authentifié');
+      }
+
+      if (!requiredRoles.includes(user.role)) {
+        throw new ForbiddenException('Rôle insuffisant');
+      }
+
+      return true; // Rôle vérifié, pas besoin de vérifier les permissions
     }
 
     const requiredPermissions = this.reflector.get<Permission[]>(

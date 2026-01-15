@@ -9,6 +9,7 @@ import {
   UseGuards,
   BadRequestException,
   Query,
+  Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
@@ -20,17 +21,25 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Permission } from '../auth/permissions/permissions';
 import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { IpDetectionService } from '../common/services/ip-detection.service';
 
 @ApiTags('Users')
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly ipDetectionService: IpDetectionService,
+  ) {}
 
   @Post()
   @RequirePermissions(Permission.MANAGE_USERS)
-  create(@CurrentUser() user: any, @Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(user.organizationId, user.role, createUserDto);
+  create(@CurrentUser() user: any, @Body() createUserDto: CreateUserDto, @Req() req: any) {
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.usersService.create(user.organizationId, user.role, createUserDto, user.id, reqMeta);
   }
 
   @Get()
@@ -72,8 +81,13 @@ export class UsersController {
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
+    @Req() req: any,
   ) {
-    return this.usersService.update(id, user.organizationId, user.role, updateUserDto);
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.usersService.update(id, user.organizationId, user.role, updateUserDto, user.id, reqMeta);
   }
 
   @Delete(':id')
@@ -88,14 +102,22 @@ export class UsersController {
 
   @Post(':id/activate')
   @RequirePermissions(Permission.ACTIVATE_USER)
-  activate(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.usersService.activate(id, user.organizationId, user.role);
+  activate(@CurrentUser() user: any, @Param('id') id: string, @Req() req: any) {
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.usersService.activate(id, user.organizationId, user.role, user.id, reqMeta);
   }
 
   @Post(':id/deactivate')
   @RequirePermissions(Permission.DEACTIVATE_USER)
-  deactivate(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.usersService.deactivate(id, user.organizationId, user.role);
+  deactivate(@CurrentUser() user: any, @Param('id') id: string, @Req() req: any) {
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.usersService.deactivate(id, user.organizationId, user.role, user.id, reqMeta);
   }
 }
 

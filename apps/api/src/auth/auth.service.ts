@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BruteForceService } from './services/brute-force.service';
+import { RefreshTokenService } from './services/refresh-token.service';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,7 @@ export class AuthService {
     private jwtService: JwtService,
     private notificationsService: NotificationsService,
     private bruteForceService: BruteForceService,
+    private refreshTokenService: RefreshTokenService,
   ) {}
 
   async register(registerDto: RegisterDto & { confirmPassword?: string }) {
@@ -144,7 +146,7 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto, ip?: string) {
+  async login(loginDto: LoginDto, ip?: string, userAgent?: string) {
     const { email, password } = loginDto;
 
     // Check brute-force protection BEFORE checking user existence
@@ -193,12 +195,23 @@ export class AuthService {
     // Reset failures on successful login
     await this.bruteForceService.resetFailures(email, ip);
 
-    // Générer le token JWT
+    // Générer le access token (15 min)
     const payload = { sub: user.id, email: user.email, role: user.role, organizationId: user.organizationId };
     const accessToken = this.jwtService.sign(payload);
 
+    // Générer le refresh token (7-30 jours)
+    const refreshToken = this.refreshTokenService.generateRefreshToken();
+    const refreshTokenRecord = await this.refreshTokenService.createRefreshToken(
+      user.id,
+      refreshToken,
+      userAgent,
+      ip,
+    );
+
     return {
       accessToken,
+      refreshToken, // Le controller devra le mettre en cookie
+      refreshTokenExpiresAt: refreshTokenRecord.expiresAt,
       user: {
         id: user.id,
         email: user.email,
@@ -209,6 +222,95 @@ export class AuthService {
         organizationName: user.organization?.name || null,
       },
     };
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshAccessToken(refreshToken: string, userAgent?: string, ip?: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    refreshTokenExpiresAt: Date;
+  }> {
+    // Trouver le refresh token valide
+    // Note: On doit chercher dans tous les tokens car on ne peut pas hasher avant de comparer
+    const allTokens = await this.prisma.refreshToken.findMany({
+      where: {
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    let validToken: (typeof allTokens[0]) | null = null;
+    for (const dbToken of allTokens) {
+      const isValid = await this.refreshTokenService.verifyRefreshToken(refreshToken, dbToken.tokenHash);
+      if (isValid) {
+        validToken = dbToken;
+        break;
+      }
+    }
+
+    if (!validToken || !validToken.user) {
+      throw new UnauthorizedException('Refresh token invalide ou expiré');
+    }
+
+    // Vérifier que l'utilisateur est actif
+    if (validToken.user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Votre compte est désactivé');
+    }
+
+    // Générer nouveau access token
+    const payload = {
+      sub: validToken.user.id,
+      email: validToken.user.email,
+      role: validToken.user.role,
+      organizationId: validToken.user.organizationId,
+    };
+    const accessToken = this.jwtService.sign(payload);
+
+    // Rotation du refresh token (invalide l'ancien, crée un nouveau)
+    const rotated = await this.refreshTokenService.rotateRefreshToken(
+      validToken.id,
+      validToken.userId,
+      userAgent,
+      ip,
+    );
+
+    return {
+      accessToken,
+      refreshToken: rotated.token,
+      refreshTokenExpiresAt: rotated.expiresAt,
+    };
+  }
+
+  /**
+   * Logout: révoque le refresh token
+   */
+  async logout(refreshToken: string): Promise<void> {
+    // Trouver le refresh token
+    const allTokens = await this.prisma.refreshToken.findMany({
+      where: {
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    for (const dbToken of allTokens) {
+      const isValid = await this.refreshTokenService.verifyRefreshToken(refreshToken, dbToken.tokenHash);
+      if (isValid) {
+        await this.refreshTokenService.revokeRefreshToken(dbToken.id);
+        return;
+      }
+    }
+
+    // Si le token n'est pas trouvé, on ne fait rien (idempotent)
   }
 
   async validateUser(userId: string) {

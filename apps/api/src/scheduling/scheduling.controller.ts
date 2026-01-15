@@ -19,10 +19,14 @@ import type { Response } from 'express';
 import { SchedulingService } from './scheduling.service';
 import { CreateAppointmentDto, UpdateAppointmentDto } from './dto/scheduling.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OwnershipGuard } from '../auth/guards/ownership.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireOwnership } from '../auth/decorators/require-ownership.decorator';
+import { ResourceType } from '../auth/policies/ownership-policy.service';
 import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { IdempotencyService } from '../common/services/idempotency.service';
+import { IpDetectionService } from '../common/services/ip-detection.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CalendarIcsService } from '../notifications/services/calendar-ics.service';
 
@@ -32,6 +36,7 @@ export class SchedulingController {
   constructor(
     private readonly schedulingService: SchedulingService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly ipDetectionService: IpDetectionService,
     private readonly prisma: PrismaService,
     private readonly calendarIcsService: CalendarIcsService,
   ) {}
@@ -41,11 +46,18 @@ export class SchedulingController {
   createAppointment(
     @CurrentUser() user: any,
     @Body() createAppointmentDto: CreateAppointmentDto,
+    @Req() req: any,
   ) {
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
     return this.schedulingService.createAppointment(
       user.organizationId,
       createAppointmentDto.leadId,
       createAppointmentDto,
+      user.id,
+      reqMeta,
     );
   }
 
@@ -83,37 +95,55 @@ export class SchedulingController {
   }
 
   @Get('appointments/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @RequireOwnership(ResourceType.APPOINTMENT)
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.schedulingService.findOne(id, user.organizationId);
   }
 
   @Patch('appointments/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @RequireOwnership(ResourceType.APPOINTMENT)
   update(
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() updateAppointmentDto: UpdateAppointmentDto,
+    @Req() req: any,
   ) {
-    return this.schedulingService.update(id, user.organizationId, updateAppointmentDto);
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.schedulingService.update(id, user.organizationId, updateAppointmentDto, user.id, reqMeta);
   }
 
   @Post('appointments/:id/complete')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @RequireOwnership(ResourceType.APPOINTMENT)
   markCompleted(
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body('outcome') outcome: string,
+    @Req() req: any,
   ) {
-    return this.schedulingService.markCompleted(id, user.organizationId, outcome);
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.schedulingService.markCompleted(id, user.organizationId, outcome, user.id, reqMeta);
   }
 
   @Post('appointments/:id/no-show')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(JwtAuthGuard)
-  markNoShow(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.schedulingService.markNoShow(id, user.organizationId);
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @RequireOwnership(ResourceType.APPOINTMENT)
+  markNoShow(@CurrentUser() user: any, @Param('id') id: string, @Req() req: any) {
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.schedulingService.markNoShow(id, user.organizationId, user.id, reqMeta);
   }
 
   // Endpoints publics pour la réservation
@@ -131,7 +161,7 @@ export class SchedulingController {
     @Req() req: any,
   ) {
     const route = '/scheduling/appointments/public';
-    const ip = req.ip || req.connection?.remoteAddress;
+    const ip = this.ipDetectionService.getClientIp(req);
 
     // Get organizationId from lead before processing
     // We need to check the lead exists anyway, so do it early
@@ -153,7 +183,6 @@ export class SchedulingController {
         route,
         createAppointmentDto,
         organizationId,
-        ip,
       );
 
       if (stored) {
@@ -174,7 +203,6 @@ export class SchedulingController {
         HttpStatus.CREATED,
         result,
         organizationId,
-        ip,
       );
     }
 

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { CreateDealDto, UpdateDealDto } from './dto/crm.dto';
 import {
   PaginationQueryDto,
@@ -13,6 +14,7 @@ import {
 export class CrmService {
   constructor(
     private prisma: PrismaService,
+    private tenantPrisma: TenantPrismaService,
   ) {}
 
   async createDeal(organizationId: string, userId: string, createDealDto: CreateDealDto) {
@@ -297,16 +299,18 @@ export class CrmService {
   }
 
   async updateDeal(id: string, organizationId: string, updateDealDto: UpdateDealDto) {
-    const oldDeal = await this.prisma.deal.findUnique({ where: { id } });
-    const deal = await this.prisma.deal.update({
-      where: { id },
-      data: updateDealDto,
-      include: {
-        lead: true,
-        createdBy: true,
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    const deal = await this.tenantPrisma.deal.update(
+      {
+        where: { id },
+        data: updateDealDto,
+        include: {
+          lead: true,
+          createdBy: true,
+        },
       },
-    });
-
+      organizationId,
+    );
 
     return deal;
   }

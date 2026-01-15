@@ -16,6 +16,8 @@ import { SmsService } from '../services/sms.service';
 import { WhatsappService } from '../services/whatsapp.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FailedJobService } from '../../queue/failed-job.service';
+import { MessageDeliveryService } from '../services/message-delivery.service';
+import { MessageProvider, MessageChannel } from '@prisma/client';
 
 @Injectable()
 export class NotificationsProcessor implements OnModuleInit, OnModuleDestroy {
@@ -31,6 +33,7 @@ export class NotificationsProcessor implements OnModuleInit, OnModuleDestroy {
     private prisma: PrismaService,
     private failedJobService: FailedJobService,
     private configService: ConfigService,
+    private messageDeliveryService: MessageDeliveryService,
   ) {}
 
   async onModuleInit() {
@@ -133,48 +136,341 @@ export class NotificationsProcessor implements OnModuleInit, OnModuleDestroy {
     const { to, subject, html, text, metadata } = data;
 
     try {
+      // Determine provider
+      const emailProvider = this.configService.get<string>('EMAIL_PROVIDER') || 'RESEND';
+      const provider: MessageProvider =
+        emailProvider === 'SENDGRID' ? MessageProvider.SENDGRID : MessageProvider.RESEND;
+
+      // Create payload for deduplication
+      const payload = {
+        to,
+        subject,
+        html,
+        text,
+        from: this.configService.get<string>('EMAIL_FROM') || 'noreply@klozd.com',
+      };
+
+      // Create or get delivery record (deduplication)
+      const delivery = await this.messageDeliveryService.createOrGetDelivery(
+        metadata?.organizationId,
+        provider,
+        MessageChannel.EMAIL,
+        to,
+        metadata?.templateKey || metadata?.template,
+        payload,
+        metadata,
+      );
+
+      // If already sent, return success (no double send)
+      if (delivery.status === 'SENT' || delivery.status === 'DELIVERED') {
+        this.logger.log(
+          `Duplicate email skipped: ${to} (deliveryId: ${delivery.id}, status: ${delivery.status})`,
+        );
+        return true;
+      }
+
+      // If PENDING and this is a retry, check if we should retry or backoff
+      if (delivery.status === 'PENDING') {
+        // Check if delivery was created recently (within last 5 minutes)
+        // If yes, might be a concurrent retry, skip to avoid double send
+        const deliveryRecord = await this.messageDeliveryService.getDelivery(delivery.id);
+        if (deliveryRecord) {
+          const ageMs = Date.now() - deliveryRecord.createdAt.getTime();
+          if (ageMs < 5 * 60 * 1000) {
+            // Very recent, might be concurrent, skip
+            this.logger.warn(
+              `Pending delivery too recent (${ageMs}ms), skipping to avoid double send: ${delivery.id}`,
+            );
+            return true;
+          }
+        }
+      }
+
+      // Send email
       const result = await this.emailService.sendEmail(to, subject, html, text);
 
-      // Mettre à jour la notification si un ID est fourni
-      if (result && metadata?.notificationId) {
-        try {
-          await this.prisma.notification.update({
-            where: { id: metadata.notificationId },
-            data: {
-              status: 'SENT',
-              sentAt: new Date(),
-            },
-          });
-        } catch (updateError) {
-          this.logger.warn(`Impossible de mettre à jour la notification ${metadata.notificationId}:`, updateError);
+      if (result) {
+        // Extract provider message ID from email service response
+        // Note: This requires updating EmailService to return messageId
+        // For now, we'll mark as sent without providerMessageId
+        await this.messageDeliveryService.markSent(delivery.id);
+
+        // Mettre à jour la notification si un ID est fourni
+        if (metadata?.notificationId) {
+          try {
+            await this.prisma.notification.update({
+              where: { id: metadata.notificationId },
+              data: {
+                status: 'SENT',
+                sentAt: new Date(),
+              },
+            });
+          } catch (updateError) {
+            this.logger.warn(`Impossible de mettre à jour la notification ${metadata.notificationId}:`, updateError);
+          }
         }
+      } else {
+        await this.messageDeliveryService.markFailed(
+          delivery.id,
+          'EMAIL_SERVICE_FALSE',
+          'Email service returned false',
+        );
       }
 
       return result;
     } catch (error: any) {
       this.logger.error(`Erreur lors de l'envoi de l'email à ${to}:`, error.message);
+      
+      // Try to mark delivery as failed if we can find it
+      try {
+        const emailProvider = this.configService.get<string>('EMAIL_PROVIDER') || 'RESEND';
+        const provider: MessageProvider =
+          emailProvider === 'SENDGRID' ? MessageProvider.SENDGRID : MessageProvider.RESEND;
+        const payload = {
+          to,
+          subject,
+          html,
+          text,
+          from: this.configService.get<string>('EMAIL_FROM') || 'noreply@klozd.com',
+        };
+        const payloadHash = this.messageDeliveryService.computePayloadHash(payload);
+        
+        // Find delivery by hash (if exists)
+        const whereClause: any = {
+          channel: MessageChannel.EMAIL,
+          to,
+          templateKey: metadata?.templateKey || metadata?.template || null,
+          payloadHash,
+          status: 'PENDING',
+        };
+        if (metadata?.organizationId) {
+          whereClause.organizationId = metadata.organizationId;
+        } else {
+          whereClause.organizationId = null;
+        }
+        const existing = await this.prisma.messageDelivery.findFirst({
+          where: whereClause,
+        });
+
+        if (existing) {
+          await this.messageDeliveryService.markFailed(
+            existing.id,
+            error.code || 'UNKNOWN_ERROR',
+            error.message,
+          );
+        }
+      } catch (markError) {
+        // Ignore errors when marking as failed
+      }
+      
       throw error;
     }
   }
 
   private async handleSendSms(data: SendSmsJobData): Promise<boolean> {
-    const { to, message } = data;
+    const { to, message, metadata } = data;
 
     try {
-      return await this.smsService.sendSms(to, message);
+      // Create payload for deduplication
+      const payload = {
+        to,
+        message,
+        from: this.configService.get<string>('TWILIO_PHONE_NUMBER') || this.configService.get<string>('SMS_FROM'),
+      };
+
+      // Create or get delivery record (deduplication)
+      const delivery = await this.messageDeliveryService.createOrGetDelivery(
+        metadata?.organizationId,
+        MessageProvider.TWILIO,
+        MessageChannel.SMS,
+        to,
+        metadata?.templateKey || metadata?.template,
+        payload,
+        metadata,
+      );
+
+      // If already sent, return success (no double send)
+      if (delivery.status === 'SENT' || delivery.status === 'DELIVERED') {
+        this.logger.log(
+          `Duplicate SMS skipped: ${to} (deliveryId: ${delivery.id}, status: ${delivery.status})`,
+        );
+        return true;
+      }
+
+      // If PENDING and this is a retry, check if we should retry or backoff
+      if (delivery.status === 'PENDING') {
+        const deliveryRecord = await this.messageDeliveryService.getDelivery(delivery.id);
+        if (deliveryRecord) {
+          const ageMs = Date.now() - deliveryRecord.createdAt.getTime();
+          if (ageMs < 5 * 60 * 1000) {
+            this.logger.warn(
+              `Pending delivery too recent (${ageMs}ms), skipping to avoid double send: ${delivery.id}`,
+            );
+            return true;
+          }
+        }
+      }
+
+      // Send SMS
+      const result = await this.smsService.sendSms(to, message);
+
+      if (result) {
+        // Note: SMS service should return messageId (Twilio SID)
+        // For now, we'll mark as sent without providerMessageId
+        // TODO: Update SmsService to return messageId
+        await this.messageDeliveryService.markSent(delivery.id);
+      } else {
+        await this.messageDeliveryService.markFailed(
+          delivery.id,
+          'SMS_SERVICE_FALSE',
+          'SMS service returned false',
+        );
+      }
+
+      return result;
     } catch (error: any) {
       this.logger.error(`Erreur lors de l'envoi du SMS à ${to}:`, error.message);
+      
+      // Try to mark delivery as failed
+      try {
+        const payload = {
+          to,
+          message,
+          from: this.configService.get<string>('TWILIO_PHONE_NUMBER') || this.configService.get<string>('SMS_FROM'),
+        };
+        const payloadHash = this.messageDeliveryService.computePayloadHash(payload);
+        
+        const whereClause: any = {
+          channel: MessageChannel.SMS,
+          to,
+          templateKey: metadata?.templateKey || metadata?.template || null,
+          payloadHash,
+          status: 'PENDING',
+        };
+        if (metadata?.organizationId) {
+          whereClause.organizationId = metadata.organizationId;
+        } else {
+          whereClause.organizationId = null;
+        }
+        const existing = await this.prisma.messageDelivery.findFirst({
+          where: whereClause,
+        });
+
+        if (existing) {
+          await this.messageDeliveryService.markFailed(
+            existing.id,
+            error.code || 'UNKNOWN_ERROR',
+            error.message,
+          );
+        }
+      } catch (markError) {
+        // Ignore
+      }
+      
       throw error;
     }
   }
 
   private async handleSendWhatsApp(data: SendWhatsAppJobData): Promise<boolean> {
-    const { to, message } = data;
+    const { to, message, metadata } = data;
 
     try {
-      return await this.whatsappService.sendWhatsApp(to, message);
+      // Create payload for deduplication
+      const payload = {
+        to,
+        message,
+        from: this.configService.get<string>('TWILIO_WHATSAPP_NUMBER') || this.configService.get<string>('WHATSAPP_FROM'),
+      };
+
+      // Create or get delivery record (deduplication)
+      const delivery = await this.messageDeliveryService.createOrGetDelivery(
+        metadata?.organizationId,
+        MessageProvider.TWILIO, // WhatsApp uses Twilio
+        MessageChannel.WHATSAPP,
+        to,
+        metadata?.templateKey || metadata?.template,
+        payload,
+        metadata,
+      );
+
+      // If already sent, return success (no double send)
+      if (delivery.status === 'SENT' || delivery.status === 'DELIVERED') {
+        this.logger.log(
+          `Duplicate WhatsApp skipped: ${to} (deliveryId: ${delivery.id}, status: ${delivery.status})`,
+        );
+        return true;
+      }
+
+      // If PENDING and this is a retry, check if we should retry or backoff
+      if (delivery.status === 'PENDING') {
+        const deliveryRecord = await this.messageDeliveryService.getDelivery(delivery.id);
+        if (deliveryRecord) {
+          const ageMs = Date.now() - deliveryRecord.createdAt.getTime();
+          if (ageMs < 5 * 60 * 1000) {
+            this.logger.warn(
+              `Pending delivery too recent (${ageMs}ms), skipping to avoid double send: ${delivery.id}`,
+            );
+            return true;
+          }
+        }
+      }
+
+      // Send WhatsApp
+      const result = await this.whatsappService.sendWhatsApp(to, message);
+
+      if (result) {
+        // Note: WhatsApp service should return messageId (Twilio SID)
+        // For now, we'll mark as sent without providerMessageId
+        // TODO: Update WhatsappService to return messageId
+        await this.messageDeliveryService.markSent(delivery.id);
+      } else {
+        await this.messageDeliveryService.markFailed(
+          delivery.id,
+          'WHATSAPP_SERVICE_FALSE',
+          'WhatsApp service returned false',
+        );
+      }
+
+      return result;
     } catch (error: any) {
       this.logger.error(`Erreur lors de l'envoi du WhatsApp à ${to}:`, error.message);
+      
+      // Try to mark delivery as failed
+      try {
+        const payload = {
+          to,
+          message,
+          from: this.configService.get<string>('TWILIO_WHATSAPP_NUMBER') || this.configService.get<string>('WHATSAPP_FROM'),
+        };
+        const payloadHash = this.messageDeliveryService.computePayloadHash(payload);
+        
+        const whereClause: any = {
+          channel: MessageChannel.WHATSAPP,
+          to,
+          templateKey: metadata?.templateKey || metadata?.template || null,
+          payloadHash,
+          status: 'PENDING',
+        };
+        if (metadata?.organizationId) {
+          whereClause.organizationId = metadata.organizationId;
+        } else {
+          whereClause.organizationId = null;
+        }
+        const existing = await this.prisma.messageDelivery.findFirst({
+          where: whereClause,
+        });
+
+        if (existing) {
+          await this.messageDeliveryService.markFailed(
+            existing.id,
+            error.code || 'UNKNOWN_ERROR',
+            error.message,
+          );
+        }
+      } catch (markError) {
+        // Ignore
+      }
+      
       throw error;
     }
   }

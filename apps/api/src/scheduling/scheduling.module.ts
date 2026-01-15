@@ -12,6 +12,7 @@ import { AiModule } from '../ai/ai.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CalendarConfigModule } from '../calendar-config/calendar-config.module';
 import { CommonModule } from '../common/common.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CommonModule } from '../common/common.module';
     AiModule,
     NotificationsModule,
     CalendarConfigModule,
+    AuthModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [SchedulingController],

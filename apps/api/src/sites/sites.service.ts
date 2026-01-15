@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantPrismaService } from '../prisma/tenant-prisma.service';
 import { CreateSiteDto, UpdateSiteDto } from './dto/sites.dto';
 import {
   PaginationQueryDto,
@@ -12,7 +13,10 @@ import {
 
 @Injectable()
 export class SitesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private tenantPrisma: TenantPrismaService,
+  ) {}
 
   async create(organizationId: string, createSiteDto: CreateSiteDto) {
     const { formId, ...siteData } = createSiteDto;
@@ -202,36 +206,58 @@ export class SitesService {
   }
 
   async findOne(id: string, organizationId?: string) {
-    const site = await this.prisma.site.findUnique({
-      where: { id },
-      include: {
-        form: {
-          include: {
-            formFields: {
-              orderBy: { order: 'asc' },
+    if (!organizationId) {
+      // Si pas d'organizationId, utiliser l'ancienne méthode (pour compatibilité)
+      const site = await this.prisma.site.findUnique({
+        where: { id },
+        include: {
+          form: {
+            include: {
+              formFields: {
+                orderBy: { order: 'asc' },
+              },
+            },
+          },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
             },
           },
         },
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
+      });
+
+      if (!site) {
+        throw new NotFoundException('Site non trouvé');
+      }
+
+      return site;
+    }
+
+    // Utiliser TenantPrismaService pour garantir l'isolation multi-tenant
+    return this.tenantPrisma.site.findUnique(
+      {
+        where: { id },
+        include: {
+          form: {
+            include: {
+              formFields: {
+                orderBy: { order: 'asc' },
+              },
+            },
+          },
+          organization: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
           },
         },
       },
-    });
-
-    if (!site) {
-      throw new NotFoundException('Site non trouvé');
-    }
-
-    // Si organizationId est fourni, vérifier que le site appartient à cette organisation
-    if (organizationId && site.organizationId !== organizationId) {
-      throw new ForbiddenException('Vous n\'avez pas accès à ce site');
-    }
-
-    return site;
+      organizationId,
+    );
   }
 
   async findBySlug(slug: string) {

@@ -18,11 +18,16 @@ import { Throttle } from '@nestjs/throttler';
 import { LeadsService } from './leads.service';
 import { SubmitFormDto } from './dto/leads.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OwnershipGuard } from '../auth/guards/ownership.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireOwnership } from '../auth/decorators/require-ownership.decorator';
+import { ResourceType } from '../auth/policies/ownership-policy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { IdempotencyService } from '../common/services/idempotency.service';
+import { PublicEndpointSecurityService } from '../common/services/public-endpoint-security.service';
+import { IpDetectionService } from '../common/services/ip-detection.service';
 
 @ApiTags('Leads')
 @Controller('leads')
@@ -31,6 +36,8 @@ export class LeadsController {
     private readonly leadsService: LeadsService,
     private readonly prisma: PrismaService,
     private readonly idempotencyService: IdempotencyService,
+    private readonly securityService: PublicEndpointSecurityService,
+    private readonly ipDetectionService: IpDetectionService,
   ) {}
 
   @Post('forms/:formId/submit')
@@ -43,52 +50,96 @@ export class LeadsController {
     @Req() req: any,
   ) {
     // Endpoint public pour soumettre un formulaire
+    // Idempotency-Key header is REQUIRED
+    const key = this.idempotencyService.validateIdempotencyKey(idempotencyKey);
+
     // Récupérer l'organizationId depuis le form
     const form = await this.prisma.form.findUnique({
       where: { id: formId },
-      select: { organizationId: true },
+      select: { organizationId: true, slug: true },
     });
 
     if (!form) {
       throw new NotFoundException('Formulaire non trouvé');
     }
 
-    const route = `/leads/forms/${formId}/submit`;
-    const ip = req.ip || req.connection?.remoteAddress;
+    const requestInfo = this.securityService.extractRequestInfo(req, form.slug);
 
-    // Check idempotency if key provided
-    if (idempotencyKey) {
-      const stored = await this.idempotencyService.checkIdempotency(
-        idempotencyKey,
-        route,
-        submitFormDto,
-        form.organizationId,
-        ip,
+    // Valider les mesures de sécurité (honeypot + timestamp)
+    // Note: SubmitFormDto doit être étendu pour inclure honeypot et formRenderedAt
+    const honeypot = (submitFormDto as any).honeypot;
+    const formRenderedAt = (submitFormDto as any).formRenderedAt;
+
+    try {
+      this.securityService.validateSecurity(honeypot, formRenderedAt);
+    } catch (error: any) {
+      this.securityService.logBlockedAttempt(
+        error.message,
+        requestInfo.ip,
+        requestInfo.userAgent,
+        form.slug,
+        { endpoint: 'POST /leads/forms/:formId/submit', formId },
       );
+      throw error;
+    }
 
-      if (stored) {
-        // Return stored response
-        return stored.body;
-      }
+    const scope = `form_submit:${formId}`;
+
+    // Check idempotency
+    const stored = await this.idempotencyService.checkIdempotency(
+      key,
+      scope,
+      submitFormDto,
+      form.organizationId,
+    );
+
+    if (stored) {
+      // Return stored response
+      this.securityService.logPublicRequest(
+        'POST /leads/forms/:formId/submit (idempotent)',
+        requestInfo.ip,
+        requestInfo.userAgent,
+        form.slug,
+      );
+      return stored.body;
     }
 
     // Process request
-    const result = await this.leadsService.submitForm(form.organizationId, formId, submitFormDto);
+    try {
+      const result = await this.leadsService.submitForm(form.organizationId, formId, submitFormDto);
 
-    // Store idempotency record if key provided
-    if (idempotencyKey) {
+      // Store idempotency record
       await this.idempotencyService.storeResponse(
-        idempotencyKey,
-        route,
+        key,
+        scope,
         submitFormDto,
         HttpStatus.OK,
         result,
         form.organizationId,
-        ip,
       );
-    }
 
-    return result;
+      this.securityService.logPublicRequest(
+        'POST /leads/forms/:formId/submit',
+        requestInfo.ip,
+        requestInfo.userAgent,
+        form.slug,
+        { leadId: result.lead?.id },
+      );
+
+      return result;
+    } catch (error: any) {
+      // Log quota exceeded or other errors
+      if (error.status === 429) {
+        this.securityService.logBlockedAttempt(
+          `Quota exceeded: ${error.message}`,
+          requestInfo.ip,
+          requestInfo.userAgent,
+          form.slug,
+          { endpoint: 'POST /leads/forms/:formId/submit', formId, reason: 'quota_exceeded' },
+        );
+      }
+      throw error;
+    }
   }
 
   @Post('forms/:formId/abandon')
@@ -148,17 +199,25 @@ export class LeadsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @RequireOwnership(ResourceType.LEAD)
   update(
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() updateData: any,
+    @Req() req: any,
   ) {
-    return this.leadsService.update(id, user.organizationId, updateData, user.role, user.id);
+    // Passer les métadonnées de requête pour l'audit log
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.leadsService.update(id, user.organizationId, updateData, user.role, user.id, reqMeta);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, OwnershipGuard)
+  @RequireOwnership(ResourceType.LEAD)
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.leadsService.findOne(id, user.organizationId);
   }

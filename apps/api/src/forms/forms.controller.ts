@@ -9,25 +9,69 @@ import {
   Query,
   UseGuards,
   UnauthorizedException,
+  Req,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { FormsService } from './forms.service';
 import { CreateFormDto, UpdateFormDto } from './dto/forms.dto';
+import { EvaluateFormDto } from './dto/forms-public.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { PublicEndpointSecurityService } from '../common/services/public-endpoint-security.service';
+import { IpDetectionService } from '../common/services/ip-detection.service';
 
 @ApiTags('Forms')
 @Controller('forms')
 export class FormsController {
-  constructor(private readonly formsService: FormsService) {}
+  constructor(
+    private readonly formsService: FormsService,
+    private readonly securityService: PublicEndpointSecurityService,
+    private readonly ipDetectionService: IpDetectionService,
+  ) {}
 
   // Endpoint public pour récupérer un formulaire par slug (sans authentification)
   @Get('public/:slug')
   @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
-  findBySlug(@Param('slug') slug: string) {
+  async findBySlug(@Param('slug') slug: string, @Req() req: any) {
+    const requestInfo = this.securityService.extractRequestInfo(req, slug);
+    this.securityService.logPublicRequest('GET /forms/public/:slug', requestInfo.ip, requestInfo.userAgent, slug);
     return this.formsService.findBySlug(slug);
+  }
+
+  // Endpoint public pour évaluer un formulaire (preview/validation)
+  @Post('public/:slug/evaluate')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per minute
+  async evaluateForm(
+    @Param('slug') slug: string,
+    @Body() evaluateFormDto: EvaluateFormDto,
+    @Req() req: any,
+  ) {
+    const requestInfo = this.securityService.extractRequestInfo(req, slug);
+
+    // Valider les mesures de sécurité
+    try {
+      this.securityService.validateSecurity(evaluateFormDto.honeypot, evaluateFormDto.formRenderedAt);
+    } catch (error: any) {
+      this.securityService.logBlockedAttempt(
+        error.message,
+        requestInfo.ip,
+        requestInfo.userAgent,
+        slug,
+        { endpoint: 'POST /forms/public/:slug/evaluate' },
+      );
+      throw error;
+    }
+
+    this.securityService.logPublicRequest(
+      'POST /forms/public/:slug/evaluate',
+      requestInfo.ip,
+      requestInfo.userAgent,
+      slug,
+    );
+
+    return this.formsService.evaluateForm(slug, evaluateFormDto.data);
   }
 
   @Post()
@@ -128,11 +172,16 @@ export class FormsController {
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() updateFormDto: UpdateFormDto,
+    @Req() req: any,
   ) {
     if (!user || !user.organizationId) {
       throw new UnauthorizedException('Utilisateur non authentifié ou organisation manquante');
     }
-    return this.formsService.update(id, user.organizationId, updateFormDto);
+    const reqMeta = {
+      ip: this.ipDetectionService.getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    };
+    return this.formsService.update(id, user.organizationId, updateFormDto, user.id, reqMeta);
   }
 
   @Delete(':id')
