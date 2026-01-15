@@ -8,7 +8,7 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "build": "prisma generate && nest build",
+    "build": "npx prisma generate && nest build",
     "start:prod": "node dist/main.js",
     "start:worker": "node dist/worker.js",
     "prisma:generate": "prisma generate",
