@@ -113,10 +113,17 @@ async function bootstrap() {
     customCss: '.swagger-ui .topbar { display: none }',
   });
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  console.log(`🚀 API KLOZD is running on http://localhost:${port}`);
-  console.log(`📚 API Documentation: http://localhost:${port}/api-docs`);
+  const port = Number(process.env.PORT) || 3001;
+  const host = '0.0.0.0';
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  
+  await app.listen(port, host);
+  
+  console.log(`🚀 API KLOZD is running on http://${host}:${port}`);
+  console.log(`📚 API Documentation: http://${host}:${port}/api-docs`);
+  console.log(`🌍 Environment: ${nodeEnv}`);
+  console.log(`👷 Worker: ${process.env.RUN_WORKER === 'true' ? 'ENABLED' : 'DISABLED'} (BullMQ processors ${process.env.RUN_WORKER === 'true' ? 'will' : 'will NOT'} run)`);
+  console.log(`⏰ Scheduler: ${process.env.RUN_SCHEDULER === 'true' ? 'ENABLED' : 'DISABLED'} (cron jobs ${process.env.RUN_SCHEDULER === 'true' ? 'will' : 'will NOT'} run)`);
   console.log(`📝 Logs activés - Vérifie cette console pour les erreurs`);
 }
 

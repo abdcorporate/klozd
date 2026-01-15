@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DistributedLockService } from '../common/services/distributed-lock.service';
+import { isSchedulerEnabled } from '../common/utils/scheduler.utils';
 import { subDays, subHours, isAfter } from 'date-fns';
 
 @Injectable()
@@ -24,6 +25,9 @@ export class SchedulingTasksService {
    */
   @Cron(CronExpression.EVERY_HOUR)
   async handleAppointmentConfirmations() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleAppointmentConfirmations', 5 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des confirmations de RDV à envoyer...');
@@ -138,6 +142,9 @@ export class SchedulingTasksService {
    */
   @Cron(CronExpression.EVERY_HOUR)
   async handleDayBeforeReminders() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleDayBeforeReminders', 5 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des rappels J-1 à envoyer...');
@@ -202,6 +209,9 @@ export class SchedulingTasksService {
    */
   @Cron('*/15 * * * *') // Toutes les 15 minutes
   async handleHourBeforeReminders() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleHourBeforeReminders', 3 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des rappels H-1 à envoyer...');
@@ -273,6 +283,9 @@ export class SchedulingTasksService {
    */
   @Cron('*/15 * * * *') // Toutes les 15 minutes
   async handleAppointmentStartNotifications() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleAppointmentStartNotifications', 3 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des notifications T-0 à envoyer...');
@@ -346,6 +359,9 @@ export class SchedulingTasksService {
    */
   @Cron('*/15 * * * *') // Toutes les 15 minutes
   async handleNoShowDetection() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleNoShowDetection', 3 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des no-shows potentiels...');
@@ -422,6 +438,9 @@ export class SchedulingTasksService {
    */
   @Cron('0 9 * * *') // Tous les jours à 9h
   async handleNoShowRecoveryEmails() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleNoShowRecoveryEmails', 5 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des emails de relance no-show J+2...');
@@ -485,6 +504,9 @@ export class SchedulingTasksService {
    */
   @Cron('0 9 * * 1') // Tous les lundis à 9h
   async handleNoShowRateNotification() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleNoShowRateNotification', 10 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Calcul du taux de no-show hebdomadaire...');

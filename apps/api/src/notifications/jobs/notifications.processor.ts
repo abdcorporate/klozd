@@ -18,6 +18,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { FailedJobService } from '../../queue/failed-job.service';
 import { MessageDeliveryService } from '../services/message-delivery.service';
 import { MessageProvider, MessageChannel } from '@prisma/client';
+import { isWorkerEnabled } from '../../common/utils/worker.utils';
 
 @Injectable()
 export class NotificationsProcessor implements OnModuleInit, OnModuleDestroy {
@@ -37,6 +38,12 @@ export class NotificationsProcessor implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit() {
+    // Do not start BullMQ processors in API web service - only in worker process
+    if (!isWorkerEnabled()) {
+      this.logger.log('BullMQ processor disabled (RUN_WORKER !== true), skipping worker initialization');
+      return;
+    }
+
     if (!this.queueService.isEnabled()) {
       this.logger.warn('Queue désactivée, worker non démarré');
       return;

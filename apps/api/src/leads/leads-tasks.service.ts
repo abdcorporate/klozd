@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { DistributedLockService } from '../common/services/distributed-lock.service';
+import { isSchedulerEnabled } from '../common/utils/scheduler.utils';
 
 @Injectable()
 export class LeadsTasksService {
@@ -24,6 +25,9 @@ export class LeadsTasksService {
    */
   @Cron(CronExpression.EVERY_HOUR)
   async handleAbandonRecovery() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleAbandonRecovery', 5 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Vérification des abandons à récupérer...');

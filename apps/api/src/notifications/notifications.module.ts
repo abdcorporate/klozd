@@ -23,7 +23,7 @@ import { FailedJobService } from '../queue/failed-job.service';
     NotificationsProcessor,
     FailedJobService,
   ],
-  exports: [NotificationsService],
+  exports: [NotificationsService, EmailService],
 })
 export class NotificationsModule {}
 

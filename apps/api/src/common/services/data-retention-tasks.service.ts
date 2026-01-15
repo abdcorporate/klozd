@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { DataRetentionService } from './data-retention.service';
 import { DistributedLockService } from './distributed-lock.service';
+import { isSchedulerEnabled } from '../utils/scheduler.utils';
 import { PinoLogger } from 'nestjs-pino';
 
 @Injectable()
@@ -21,6 +22,9 @@ export class DataRetentionTasksService {
    */
   @Cron('0 2 * * *') // Tous les jours à 2h du matin
   async handleDataRetention() {
+    if (!isSchedulerEnabled()) {
+      return;
+    }
     await this.lockService.withLock('handleDataRetention', 30 * 60 * 1000, async () => {
       const startTime = Date.now();
       this.logger.log('Starting daily data retention purge job...');

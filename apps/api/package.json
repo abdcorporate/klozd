@@ -8,8 +8,12 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
+    "build": "nest build",
+    "start:prod": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:setup-models": "bash scripts/setup-prisma-models.sh",
     "create-admin": "ts-node -r tsconfig-paths/register src/auth/create-admin.ts",
     "create-all-roles": "ts-node -r tsconfig-paths/register src/auth/create-all-roles.ts",
