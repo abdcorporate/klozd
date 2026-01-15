@@ -136,7 +136,7 @@ export default function FormsPage() {
           <div className="flex items-center space-x-3">
             {activeTab === 'forms' ? (
               <Link
-                href="/pages/new"
+                href="/forms/new"
                 className="px-4 py-2 text-white rounded-md transition-colors font-medium shadow-sm bg-black hover:bg-gray-800"
               >
                 + Nouveau formulaire
@@ -194,97 +194,50 @@ export default function FormsPage() {
           (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') ? (
             <div className="space-y-4">
               {sites.length === 0 ? (
-              <div className="bg-white rounded-lg shadow p-12 text-center">
-                <p className="text-gray-500 mb-4">Aucun site créé</p>
-                <button
-                  onClick={() => router.push('/sites/new')}
-                  className="px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
-                >
-                  Créer votre premier site
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Nom
-                      </th>
-                      {(user?.role === 'SUPER_ADMIN') && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Organisation
-                        </th>
+                <div className="bg-white p-12 rounded-lg shadow-lg border border-gray-200 text-center">
+                  <p className="text-gray-600 mb-4">Aucun site créé</p>
+                  <button
+                    onClick={() => router.push('/sites/new')}
+                    className="inline-block px-4 py-2 text-white rounded-md transition-colors font-medium shadow-sm bg-black hover:bg-gray-800"
+                  >
+                    Créer votre premier site
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {sites.map((site) => (
+                    <div key={site.id} className="bg-white/90 backdrop-blur-sm p-6 rounded-lg shadow-lg border border-gray-200 relative overflow-hidden hover:border-brand-orange transition-shadow">
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-xl font-semibold text-gray-900">{site.name}</h3>
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          site.status === 'ACTIVE' ? 'bg-green-100 text-green-800' :
+                          site.status === 'DRAFT' ? 'bg-gray-100 text-gray-800' :
+                          site.status === 'PAUSED' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {getStatusLabel(site.status)}
+                        </span>
+                      </div>
+                      {site.description && (
+                        <p className="text-gray-600 text-sm mb-4">{site.description}</p>
                       )}
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Slug
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Créé le
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {sites.map((site) => (
-                      <tr key={site.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{site.name}</div>
-                          {site.description && (
-                            <div className="text-sm text-gray-500">{site.description}</div>
-                          )}
-                        </td>
-                        {(user?.role === 'SUPER_ADMIN') && (
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {site.organization?.name || 'N/A'}
-                            </div>
-                          </td>
-                        )}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                              site.status,
-                            )}`}
-                          >
-                            {getStatusLabel(site.status)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{site.slug}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(site.createdAt).toLocaleDateString('fr-FR', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => router.push(`/sites/${site.id}`)}
-                            className="text-indigo-600 hover:text-indigo-900 mr-4"
-                          >
-                            Voir
-                          </button>
-                          <button
-                            onClick={() => router.push(`/sites/${site.id}/edit`)}
-                            className="text-gray-600 hover:text-gray-900"
-                          >
-                            Modifier
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                      {user?.role === 'SUPER_ADMIN' && site.organization && (
+                        <div className="text-xs text-gray-500 mb-4">
+                          {site.organization.name}
+                        </div>
+                      )}
+                      <div className="mt-4 pt-4 border-t border-gray-300">
+                        <Link
+                          href={`/sites/${site.id}`}
+                          className="text-sm text-brand-orange hover:underline font-medium"
+                        >
+                          Voir les détails →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null
         ) : (
@@ -294,7 +247,7 @@ export default function FormsPage() {
             <div className="bg-white p-12 rounded-lg shadow-lg border border-gray-200 text-center">
               <p className="text-gray-600 mb-4">Aucun formulaire pour le moment</p>
               <Link
-                href="/pages/new"
+                href="/forms/new"
                 className="inline-block px-4 py-2 text-white rounded-md transition-colors font-medium shadow-sm bg-black hover:bg-gray-800"
               >
                 Créer votre premier formulaire
@@ -314,16 +267,13 @@ export default function FormsPage() {
                       {getStatusLabel(form.status)}
                     </span>
                   </div>
-                  {form.description && (
-                    <p className="text-gray-600 text-sm mb-4">{form.description}</p>
-                  )}
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>{form._count.submissions} soumissions</span>
                     <span>{form._count.leads} leads</span>
                   </div>
                   <div className="mt-4 pt-4 border-t border-gray-300">
                     <Link
-                      href={`/pages/${form.id}`}
+                      href={`/forms/${form.id}`}
                       className="text-sm text-brand-orange hover:underline font-medium"
                     >
                       Voir les détails →

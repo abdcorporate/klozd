@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSiteDto, UpdateSiteDto } from './dto/sites.dto';
 import {
@@ -31,26 +32,40 @@ export class SitesService {
       }
     }
 
-    const site = await this.prisma.site.create({
-      data: {
-        ...siteData,
-        organizationId,
-        formId: formId || null,
-        contentJson: siteData.contentJson || JSON.stringify({ sections: [] }),
-      },
-      include: {
-        form: {
-          include: {
-            formFields: {
-              orderBy: { order: 'asc' },
+    try {
+      const site = await this.prisma.site.create({
+        data: {
+          ...siteData,
+          organizationId,
+          formId: formId || null,
+          contentJson: siteData.contentJson || JSON.stringify({ sections: [] }),
+        },
+        include: {
+          form: {
+            include: {
+              formFields: {
+                orderBy: { order: 'asc' },
+              },
             },
           },
+          organization: true,
         },
-        organization: true,
-      },
-    });
+      });
 
-    return site;
+      return site;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const target = error.meta?.target as string[] | undefined;
+          if (target && target.includes('slug')) {
+            throw new BadRequestException(
+              `Un site avec le slug "${createSiteDto.slug}" existe déjà. Veuillez choisir un autre slug.`,
+            );
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async findAllForAdmin(pagination: PaginationQueryDto): Promise<PaginatedResponse<any>> {
@@ -282,7 +297,8 @@ export class SitesService {
 
     const { formId, ...siteData } = updateSiteDto;
 
-    const site = await this.prisma.site.update({
+    try {
+      const site = await this.prisma.site.update({
       where: { id },
       data: {
         ...siteData,
@@ -306,7 +322,20 @@ export class SitesService {
       },
     });
 
-    return site;
+      return site;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const target = error.meta?.target as string[] | undefined;
+          if (target && target.includes('slug')) {
+            throw new BadRequestException(
+              `Un site avec le slug "${updateSiteDto.slug}" existe déjà. Veuillez choisir un autre slug.`,
+            );
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async remove(id: string, organizationId: string) {

@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFormDto, UpdateFormDto } from './dto/forms.dto';
 import { PricingService } from '../settings/pricing.service';
@@ -38,32 +39,46 @@ export class FormsService {
     // Séparer les champs du formulaire des champs de relation
     const { formFields, ...formData } = createFormDto;
 
-    const form = await this.prisma.form.create({
-      data: {
-        ...formData,
-        organizationId,
-      },
-      include: {
-        formFields: true,
-      },
-    });
-
-    // Si des formFields sont fournis, les créer
-    if (formFields && formFields.length > 0) {
-      await this.prisma.formField.createMany({
-        data: formFields.map((field) => ({
-          ...field,
-          formId: form.id,
-        })),
+    try {
+      const form = await this.prisma.form.create({
+        data: {
+          ...formData,
+          organizationId,
+        },
+        include: {
+          formFields: true,
+        },
       });
-    }
 
-    return this.prisma.form.findUnique({
-      where: { id: form.id },
-      include: {
-        formFields: true,
-      },
-    });
+      // Si des formFields sont fournis, les créer
+      if (formFields && formFields.length > 0) {
+        await this.prisma.formField.createMany({
+          data: formFields.map((field) => ({
+            ...field,
+            formId: form.id,
+          })),
+        });
+      }
+
+      return this.prisma.form.findUnique({
+        where: { id: form.id },
+        include: {
+          formFields: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const target = error.meta?.target as string[] | undefined;
+          if (target && target.includes('slug')) {
+            throw new BadRequestException(
+              `Un formulaire avec le slug "${createFormDto.slug}" existe déjà. Veuillez choisir un autre slug.`,
+            );
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async findAll(organizationId: string, pagination: PaginationQueryDto): Promise<PaginatedResponse<any>> {
@@ -273,13 +288,14 @@ export class FormsService {
     // Séparer les champs du formulaire des champs de relation
     const { formFields, ...formData } = updateFormDto;
 
-    const updatedForm = await this.prisma.form.update({
-      where: { id },
-      data: formData,
-      include: {
-        formFields: true,
-      },
-    });
+    try {
+      const updatedForm = await this.prisma.form.update({
+        where: { id },
+        data: formData,
+        include: {
+          formFields: true,
+        },
+      });
 
     // Si des formFields sont fournis, supprimer les anciens et créer les nouveaux
     if (formFields && formFields.length > 0) {
@@ -297,15 +313,28 @@ export class FormsService {
       });
     }
     
-    // Retourner le formulaire mis à jour avec ses champs
-    return this.prisma.form.findUnique({
-      where: { id },
-      include: {
-        formFields: {
-          orderBy: { order: 'asc' },
+      // Retourner le formulaire mis à jour avec ses champs
+      return this.prisma.form.findUnique({
+        where: { id },
+        include: {
+          formFields: {
+            orderBy: { order: 'asc' },
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const target = error.meta?.target as string[] | undefined;
+          if (target && target.includes('slug')) {
+            throw new BadRequestException(
+              `Un formulaire avec le slug "${updateFormDto.slug}" existe déjà. Veuillez choisir un autre slug.`,
+            );
+          }
+        }
+      }
+      throw error;
+    }
   }
 
   async getAnalytics(id: string, organizationId: string, days: number = 7) {

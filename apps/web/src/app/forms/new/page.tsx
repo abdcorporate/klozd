@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { FormProvider, useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { formsApi, api } from '@/lib/api';
+import { formsApi } from '@/lib/api';
 import { AppLayout } from '@/components/layout/app-layout';
 import { useAuthStore } from '@/store/auth-store';
 import { DraggableFieldList } from '@/components/forms/draggable-field-list';
 import { FormPreview } from '@/components/forms/form-preview';
+import { FormTemplates } from '@/components/forms/form-templates';
 import { FieldPalette } from '@/components/forms/field-palette';
 import { DndContext, DragEndEvent, closestCenter, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 
@@ -40,21 +41,40 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
-export default function EditFormPage() {
-  const params = useParams();
+// Composant pour la zone de drop du canvas
+function CanvasDropZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'form-canvas',
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[400px] ${isOver ? 'bg-blue-50 border-2 border-blue-400 border-dashed' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+export default function NewFormPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
-  const formId = params.id as string;
-  
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      status: 'DRAFT',
       minScore: 70,
+      backgroundColor: '',
+      textColor: '',
+      primaryButtonColor: '',
+      fontFamily: '',
+      borderRadius: '',
       formFields: [],
     },
   });
@@ -67,6 +87,7 @@ export default function EditFormPage() {
     watch,
     setValue,
     reset,
+    getValues,
   } = methods;
 
   // Surveiller les valeurs de couleur pour la synchronisation
@@ -78,81 +99,6 @@ export default function EditFormPage() {
     control,
     name: 'formFields',
   });
-
-  // Charger le formulaire existant
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-
-    if (user?.role !== 'ADMIN') {
-      router.push('/dashboard');
-      return;
-    }
-
-    const fetchForm = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get(`/forms/${formId}`);
-        const form = response.data;
-
-        // Transformer les données pour le formulaire
-        const formFields = form.formFields
-          .sort((a: any, b: any) => a.order - b.order)
-          .map((field: any) => {
-            let options = '';
-            if (field.optionsJson) {
-              try {
-                const parsed = JSON.parse(field.optionsJson);
-                if (Array.isArray(parsed)) {
-                  options = parsed.join('\n');
-                }
-              } catch (e) {
-                // Ignore parsing errors
-              }
-            }
-
-            return {
-              label: field.label,
-              type: field.type,
-              required: field.required,
-              order: field.order,
-              options: options,
-              scoringRulesJson: field.scoringRulesJson || '',
-            };
-          });
-
-        reset({
-          name: form.name,
-          description: form.description || '',
-          slug: form.slug,
-          status: form.status || 'DRAFT',
-          minScore: form.minScore || 70,
-          qualifiedRedirectUrl: form.qualifiedRedirectUrl || '',
-          disqualifiedRedirectUrl: form.disqualifiedRedirectUrl || '',
-          backgroundColor: form.backgroundColor || '',
-          textColor: form.textColor || '',
-          primaryButtonColor: form.primaryButtonColor || '',
-          fontFamily: form.fontFamily || '',
-          borderRadius: form.borderRadius || '',
-          formFields: formFields,
-        });
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          setError('Formulaire non trouvé');
-        } else {
-          setError('Erreur lors du chargement du formulaire');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (formId) {
-      fetchForm();
-    }
-  }, [formId, user, isAuthenticated, router, reset]);
 
   const onSubmit = async (data: FormData) => {
     if (!isAuthenticated) {
@@ -188,13 +134,28 @@ export default function EditFormPage() {
         })),
       };
 
-      await formsApi.update(formId, formData);
-      router.push(`/forms/${formId}`);
+      const response = await formsApi.create(formData);
+      router.push(`/forms/${response.data.id}`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Erreur lors de la mise à jour du formulaire');
+      setError(err.response?.data?.message || 'Erreur lors de la création du formulaire');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSelectTemplate = (template: any) => {
+    reset({
+      name: template.name,
+      description: template.description,
+      minScore: 70,
+      formFields: template.fields.map((field: any, index: number) => ({
+        ...field,
+        order: index,
+        options: field.options || undefined,
+        scoringRulesJson: field.scoringRulesJson || undefined,
+      })),
+    });
+    setShowTemplates(false);
   };
 
   const handleAddField = (fieldType?: string) => {
@@ -231,7 +192,7 @@ export default function EditFormPage() {
     }
 
     // Si on réorganise les champs existants
-    if (!active.id.toString().startsWith('palette-') && !active.id.toString().startsWith('palette-') && over.id !== 'form-canvas') {
+    if (!active.id.toString().startsWith('palette-') && !over.id.toString().startsWith('palette-') && over.id !== 'form-canvas') {
       // Utiliser l'ID pour trouver les indices
       const activeId = active.id.toString();
       const overId = over.id.toString();
@@ -263,42 +224,6 @@ export default function EditFormPage() {
     }
   };
 
-  // Composant pour la zone de drop du canvas
-  function CanvasDropZone({ children }: { children: React.ReactNode }) {
-    const { setNodeRef, isOver } = useDroppable({
-      id: 'form-canvas',
-    });
-
-    return (
-      <div
-        ref={setNodeRef}
-        className={`min-h-[400px] ${isOver ? 'bg-blue-50 border-2 border-blue-400 border-dashed' : ''}`}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Chargement...</div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (error && !loading) {
-    return (
-      <AppLayout>
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded">
-          {error}
-        </div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
       <FormProvider {...methods}>
@@ -306,9 +231,16 @@ export default function EditFormPage() {
           {/* Header fixe */}
           <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-white">
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Modifier le formulaire</h1>
+              <h1 className="text-xl font-bold text-gray-900">Nouveau formulaire</h1>
             </div>
             <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {showTemplates ? 'Masquer' : 'Templates'}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowPreview(!showPreview)}
@@ -418,134 +350,134 @@ export default function EditFormPage() {
                       <h2 className="text-lg font-semibold text-gray-900 mb-4">Personnalisation du style</h2>
 
                       <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Couleur de fond
-                      </label>
-                      <input
-                        type="color"
-                        value={backgroundColor || '#f9fafb'}
-                        onChange={(e) => setValue('backgroundColor', e.target.value)}
-                        className="cursor-pointer"
-                        style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: '50%',
-                          border: 'none',
-                          outline: 'none',
-                          padding: 0,
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          appearance: 'none',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                        }}
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Couleur de fond
+                          </label>
+                          <input
+                            type="color"
+                            value={backgroundColor || '#f9fafb'}
+                            onChange={(e) => setValue('backgroundColor', e.target.value)}
+                            className="cursor-pointer"
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '50%',
+                              border: 'none',
+                              outline: 'none',
+                              padding: 0,
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              appearance: 'none',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                            }}
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Couleur du texte
-                      </label>
-                      <input
-                        type="color"
-                        value={textColor || '#111827'}
-                        onChange={(e) => setValue('textColor', e.target.value)}
-                        className="cursor-pointer"
-                        style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: '50%',
-                          border: 'none',
-                          outline: 'none',
-                          padding: 0,
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          appearance: 'none',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                        }}
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Couleur du texte
+                          </label>
+                          <input
+                            type="color"
+                            value={textColor || '#111827'}
+                            onChange={(e) => setValue('textColor', e.target.value)}
+                            className="cursor-pointer"
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '50%',
+                              border: 'none',
+                              outline: 'none',
+                              padding: 0,
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              appearance: 'none',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                            }}
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Couleur du bouton
-                      </label>
-                      <input
-                        type="color"
-                        value={primaryButtonColor || '#4b5563'}
-                        onChange={(e) => setValue('primaryButtonColor', e.target.value)}
-                        className="cursor-pointer"
-                        style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: '50%',
-                          border: 'none',
-                          outline: 'none',
-                          padding: 0,
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          appearance: 'none',
-                          overflow: 'hidden',
-                          cursor: 'pointer',
-                        }}
-                      />
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Couleur du bouton
+                          </label>
+                          <input
+                            type="color"
+                            value={primaryButtonColor || '#4b5563'}
+                            onChange={(e) => setValue('primaryButtonColor', e.target.value)}
+                            className="cursor-pointer"
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '50%',
+                              border: 'none',
+                              outline: 'none',
+                              padding: 0,
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              appearance: 'none',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                            }}
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Police de caractères
-                      </label>
-                      <select
-                        {...register('fontFamily')}
-                        className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-black focus:border-black appearance-none bg-no-repeat bg-right"
-                        style={{
-                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
-                          backgroundPosition: 'right 0.5rem center',
-                          backgroundSize: '1.5em 1.5em',
-                          paddingRight: '2.5rem'
-                        }}
-                      >
-                        <option value="">Par défaut</option>
-                        <option value="Arial, sans-serif">Arial</option>
-                        <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
-                        <option value="Georgia, serif">Georgia</option>
-                        <option value="'Times New Roman', Times, serif">Times New Roman</option>
-                        <option value="'Courier New', Courier, monospace">Courier New</option>
-                        <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
-                        <option value="Impact, sans-serif">Impact</option>
-                        <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
-                        <option value="Verdana, sans-serif">Verdana</option>
-                      </select>
-                    </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Police de caractères
+                          </label>
+                          <select
+                            {...register('fontFamily')}
+                            className="w-full pl-3 pr-10 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-black focus:border-black appearance-none bg-no-repeat bg-right"
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
+                              backgroundPosition: 'right 0.5rem center',
+                              backgroundSize: '1.5em 1.5em',
+                              paddingRight: '2.5rem'
+                            }}
+                          >
+                            <option value="">Par défaut</option>
+                            <option value="Arial, sans-serif">Arial</option>
+                            <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+                            <option value="Georgia, serif">Georgia</option>
+                            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                            <option value="'Courier New', Courier, monospace">Courier New</option>
+                            <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                            <option value="Impact, sans-serif">Impact</option>
+                            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                            <option value="Verdana, sans-serif">Verdana</option>
+                          </select>
+                        </div>
 
-                    <div className="col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Rayon des bordures
-                      </label>
-                      <select
-                        {...register('borderRadius')}
-                        className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-black focus:border-black appearance-none bg-no-repeat bg-right"
-                        style={{
-                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
-                          backgroundPosition: 'right 0.5rem center',
-                          backgroundSize: '1.5em 1.5em',
-                          paddingRight: '2.5rem'
-                        }}
-                      >
-                        <option value="">Par défaut (8px)</option>
-                        <option value="0">Aucun (0px)</option>
-                        <option value="4px">Petit (4px)</option>
-                        <option value="8px">Moyen (8px)</option>
-                        <option value="12px">Grand (12px)</option>
-                        <option value="16px">Très grand (16px)</option>
-                        <option value="9999px">Rond</option>
-                      </select>
-                    </div>
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Rayon des bordures
+                          </label>
+                          <select
+                            {...register('borderRadius')}
+                            className="w-full pl-3 pr-10 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-black focus:border-black appearance-none bg-no-repeat bg-right"
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
+                              backgroundPosition: 'right 0.5rem center',
+                              backgroundSize: '1.5em 1.5em',
+                              paddingRight: '2.5rem'
+                            }}
+                          >
+                            <option value="">Par défaut</option>
+                            <option value="0">Aucun (0px)</option>
+                            <option value="4px">Petit (4px)</option>
+                            <option value="8px">Moyen (8px)</option>
+                            <option value="12px">Grand (12px)</option>
+                            <option value="16px">Très grand (16px)</option>
+                            <option value="999px">Rond (999px)</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                </div>
 
                 {/* Barre d'actions fixe en bas */}
                 <div className="border-t border-gray-200 bg-white px-6 py-4 flex justify-between items-center">
@@ -575,7 +507,7 @@ export default function EditFormPage() {
                         }
                       }}
                     >
-                      {submitting ? 'Sauvegarde...' : 'Sauvegarder les modifications'}
+                      {submitting ? 'Création...' : 'Créer le formulaire'}
                     </button>
                   </div>
                 </div>
@@ -595,9 +527,28 @@ export default function EditFormPage() {
             )}
             </div>
           </DndContext>
+
+          {/* Modal Templates */}
+          {showTemplates && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto m-4">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                  <h2 className="text-xl font-semibold text-gray-900">Templates de formulaires</h2>
+                  <button
+                    onClick={() => setShowTemplates(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="p-6">
+                  <FormTemplates onSelectTemplate={handleSelectTemplate} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </FormProvider>
     </AppLayout>
   );
 }
-

@@ -92,12 +92,22 @@ function LeadsPageContent() {
         
         // Handle new paginated response format: { items, pageInfo }
         if (response.data.items && response.data.pageInfo) {
-          pagination.setItems(response.data.items);
+          // Si cursor existe, ajouter les items aux existants (charger plus)
+          // Sinon, remplacer les items (nouvelle recherche/filtre)
+          if (cursor) {
+            pagination.setItems((prevItems) => [...prevItems, ...response.data.items]);
+          } else {
+            pagination.setItems(response.data.items);
+          }
           pagination.setPageInfo(response.data.pageInfo);
         } else {
           // Fallback for old format
           const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-          pagination.setItems(items);
+          if (cursor) {
+            pagination.setItems((prevItems) => [...prevItems, ...items]);
+          } else {
+            pagination.setItems(items);
+          }
           pagination.setPageInfo({
             limit: items.length,
             nextCursor: null,
@@ -107,7 +117,10 @@ function LeadsPageContent() {
       } catch (err: any) {
         console.error('Error fetching leads:', err);
         pagination.setError(err);
-        pagination.setItems([]);
+        // Ne pas réinitialiser les items en cas d'erreur lors du chargement de la page suivante
+        if (!cursor) {
+          pagination.setItems([]);
+        }
       } finally {
         pagination.setLoading(false);
       }

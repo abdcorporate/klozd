@@ -59,7 +59,9 @@ export default function NewSitePage() {
     const fetchForms = async () => {
       try {
         const response = await formsApi.getAll();
-        setForms(response.data.filter((f: Form) => f.status === 'ACTIVE'));
+        // Handle new paginated response format
+        const formsList = response.data.items || (Array.isArray(response.data) ? response.data : []);
+        setForms(formsList.filter((f: Form) => f.status === 'ACTIVE'));
       } catch (err) {
         console.error('Erreur lors du chargement des formulaires:', err);
       }

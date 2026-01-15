@@ -12,8 +12,10 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
+  Res,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { Response } from 'express';
 import { SchedulingService } from './scheduling.service';
 import { CreateAppointmentDto, UpdateAppointmentDto } from './dto/scheduling.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,6 +24,7 @@ import { PaginationQueryDto, PaginatedResponse } from '../common/pagination';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { IdempotencyService } from '../common/services/idempotency.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CalendarIcsService } from '../notifications/services/calendar-ics.service';
 
 @ApiTags('Scheduling')
 @Controller('scheduling')
@@ -30,6 +33,7 @@ export class SchedulingController {
     private readonly schedulingService: SchedulingService,
     private readonly idempotencyService: IdempotencyService,
     private readonly prisma: PrismaService,
+    private readonly calendarIcsService: CalendarIcsService,
   ) {}
 
   @Post('appointments')
@@ -175,6 +179,39 @@ export class SchedulingController {
     }
 
     return result;
+  }
+
+  // Endpoint public pour télécharger le fichier .ics
+  @Get('appointments/:id/calendar.ics')
+  async downloadCalendarFile(@Param('id') appointmentId: string, @Res() res: Response) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        lead: true,
+        assignedCloser: true,
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Rendez-vous non trouvé');
+    }
+
+    const closerName = `${appointment.assignedCloser.firstName} ${appointment.assignedCloser.lastName}`;
+    const description = `Rendez-vous avec ${closerName}${appointment.visioUrl ? `\nLien visio: ${appointment.visioUrl}` : ''}`;
+    
+    const icsContent = this.calendarIcsService.generateIcsFile(
+      `Rendez-vous avec ${closerName}`,
+      description,
+      appointment.scheduledAt,
+      appointment.duration,
+      appointment.visioUrl || undefined,
+      appointment.assignedCloser.email || undefined,
+      appointment.lead.email || undefined,
+    );
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="rendez-vous-${appointmentId}.ics"`);
+    res.send(icsContent);
   }
 }
 

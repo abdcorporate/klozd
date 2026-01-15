@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from './services/email.service';
 import { SmsService } from './services/sms.service';
 import { WhatsappService } from './services/whatsapp.service';
+import { CalendarIcsService } from './services/calendar-ics.service';
 import { ConfigService } from '@nestjs/config';
 import { QueueService } from '../queue/queue.service';
 import { QUEUE_NAMES } from '../queue/queue.constants';
@@ -30,6 +31,7 @@ export class NotificationsService {
     private emailService: EmailService,
     private smsService: SmsService,
     private whatsappService: WhatsappService,
+    private calendarIcsService: CalendarIcsService,
     private configService: ConfigService,
     private queueService: QueueService,
   ) {}
@@ -51,15 +53,74 @@ export class NotificationsService {
     }
 
     const closerName = `${appointment.assignedCloser.firstName} ${appointment.assignedCloser.lastName}`;
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const apiUrl = this.configService.get<string>('API_URL') || 'http://localhost:3001';
+    
+    // Vérifier si l'appel est dans moins de 48h
+    const hoursUntilAppointment = (appointment.scheduledAt.getTime() - new Date().getTime()) / (1000 * 60 * 60);
+    const showVisioLink = appointment.visioUrl && hoursUntilAppointment < 48;
+    
+    // URL pour télécharger le fichier .ics
+    const icsUrl = `${apiUrl}/scheduling/appointments/${appointment.id}/calendar.ics`;
+    
+    // Contact de la closeuse
+    const closerContact: string[] = [];
+    if (appointment.assignedCloser.email) {
+      closerContact.push(`Email: <a href="mailto:${appointment.assignedCloser.email}">${appointment.assignedCloser.email}</a>`);
+    }
+    if (appointment.assignedCloser.phone) {
+      closerContact.push(`Téléphone: <a href="tel:${appointment.assignedCloser.phone}">${appointment.assignedCloser.phone}</a>`);
+    }
 
-    // Préparer le contenu de l'email
-    const subject = 'Confirmation de votre rendez-vous';
+    // Préparer le contenu de l'email amélioré
+    const subject = '✅ RDV confirmé le ' + appointment.scheduledAt.toLocaleDateString('fr-FR') + ' à ' + appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const html = `
-      <h2>Votre rendez-vous est confirmé</h2>
-      <p>Bonjour,</p>
-      <p>Votre rendez-vous avec ${closerName} est confirmé pour le ${appointment.scheduledAt.toLocaleDateString('fr-FR')} à ${appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</p>
-      ${appointment.visioUrl ? `<p><a href="${appointment.visioUrl}">Rejoindre la visioconférence</a></p>` : ''}
-      <p>À bientôt,<br>L'équipe KLOZD</p>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .button { display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px; margin: 10px 5px; font-weight: bold; }
+          .button:hover { background-color: #333; }
+          .button-large { padding: 16px 32px; font-size: 16px; }
+          .info-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          .contact-info { margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>✅ Votre rendez-vous est confirmé</h2>
+          <p>Bonjour ${appointment.lead.firstName || ''},</p>
+          <p>Votre rendez-vous avec <strong>${closerName}</strong> est confirmé pour le <strong>${appointment.scheduledAt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} à ${appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong>.</p>
+          
+          <div class="info-box">
+            <p style="margin: 0;"><strong>Durée :</strong> ${appointment.duration} minutes</p>
+            ${showVisioLink ? `<p style="margin: 10px 0 0 0;"><strong>Format :</strong> Visioconférence</p>` : ''}
+          </div>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${icsUrl}" class="button button-large">📅 Ajouter à mon calendrier</a>
+          </div>
+
+          ${showVisioLink ? `
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${appointment.visioUrl}" class="button button-large" style="background-color: #4CAF50;">🎥 Rejoindre la visioconférence</a>
+          </div>
+          ` : ''}
+
+          ${closerContact.length > 0 ? `
+          <div class="contact-info">
+            <p><strong>Contact de ${closerName} :</strong></p>
+            <p>${closerContact.join('<br>')}</p>
+          </div>
+          ` : ''}
+
+          <p>À bientôt,<br>L'équipe KLOZD</p>
+        </div>
+      </body>
+      </html>
     `;
 
     // Créer la notification en base
@@ -177,16 +238,92 @@ export class NotificationsService {
     }
 
     const closerName = `${appointment.assignedCloser.firstName} ${appointment.assignedCloser.lastName}`;
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const apiUrl = this.configService.get<string>('API_URL') || 'http://localhost:3001';
+    const icsUrl = `${apiUrl}/scheduling/appointments/${appointment.id}/calendar.ics`;
 
-    // Préparer le contenu de l'email
-    const subject = 'Rappel : Votre rendez-vous approche';
-    const html = `
-      <h2>Rappel de rendez-vous</h2>
-      <p>Bonjour,</p>
-      <p>Ceci est un rappel : vous avez un rendez-vous avec ${closerName} le ${appointment.scheduledAt.toLocaleDateString('fr-FR')} à ${appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</p>
-      ${appointment.visioUrl ? `<p><a href="${appointment.visioUrl}">Rejoindre la visioconférence</a></p>` : ''}
-      <p>À bientôt,<br>L'équipe KLOZD</p>
-    `;
+    let subject: string;
+    let html: string;
+
+    if (reminderType === 'day') {
+      // Rappel J-1 (24h avant)
+      subject = 'Rappel : RDV demain à ' + appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const confirmUrl = `${frontendUrl}/appointments/${appointment.id}/confirm`;
+      const rescheduleUrl = `${frontendUrl}/appointments/${appointment.id}/reschedule`;
+      
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .button { display: inline-block; padding: 12px 24px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px; margin: 10px 5px; font-weight: bold; }
+            .button:hover { background-color: #333; }
+            .button-success { background-color: #4CAF50; }
+            .button-success:hover { background-color: #45a049; }
+            .button-warning { background-color: #ff9800; }
+            .button-warning:hover { background-color: #e68900; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2>📅 Rappel : Votre rendez-vous approche</h2>
+            <p>Bonjour ${appointment.lead.firstName || ''},</p>
+            <p>Ceci est un rappel : vous avez un rendez-vous avec <strong>${closerName}</strong> <strong>demain</strong> à <strong>${appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong>.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${confirmUrl}" class="button button-success">✅ Confirmer ma présence</a>
+              <a href="${rescheduleUrl}" class="button button-warning">🔄 Reprogrammer</a>
+            </div>
+
+            ${appointment.visioUrl ? `
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${appointment.visioUrl}" class="button">🎥 Lien visioconférence</a>
+            </div>
+            ` : ''}
+
+            <p>À bientôt,<br>L'équipe KLOZD</p>
+          </div>
+        </body>
+        </html>
+      `;
+    } else {
+      // Rappel H-1 (1h avant)
+      subject = 'Votre appel commence dans 1h';
+      
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .button { display: inline-block; padding: 20px 40px; background-color: #4CAF50; color: #fff; text-decoration: none; border-radius: 8px; margin: 20px auto; font-weight: bold; font-size: 18px; text-align: center; }
+            .button:hover { background-color: #45a049; }
+            .button-large { display: block; width: fit-content; margin: 30px auto; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2>⏰ Votre appel commence dans 1h</h2>
+            <p>Bonjour ${appointment.lead.firstName || ''},</p>
+            <p>Votre rendez-vous avec <strong>${closerName}</strong> commence dans <strong>1 heure</strong> à <strong>${appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong>.</p>
+            
+            ${appointment.visioUrl ? `
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${appointment.visioUrl}" class="button button-large">🎥 REJOINDRE L'APPEL</a>
+            </div>
+            ` : ''}
+
+            <p>À tout de suite,<br>L'équipe KLOZD</p>
+          </div>
+        </body>
+        </html>
+      `;
+    }
 
     // Enqueuer l'email
     const emailJobData: SendEmailJobData = {
@@ -627,6 +764,153 @@ L'équipe KLOZD
       }
     } catch (error) {
       this.logger.error(`❌ Erreur lors de l'envoi de l'email d'invitation à ${email}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Envoie un email de relance pour no-show (J+0 ou J+2)
+   */
+  async sendNoShowRecoveryEmail(appointmentId: string, daysAfter: 0 | 2): Promise<void> {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        lead: true,
+        assignedCloser: true,
+      },
+    });
+
+    if (!appointment || !appointment.lead.email) {
+      return;
+    }
+
+    // Vérifier si le lead est blacklisté (2ème no-show)
+    const isBlacklisted = appointment.lead.status === 'DISQUALIFIED' && 
+      appointment.lead.disqualificationReason?.includes('blacklisté');
+
+    if (isBlacklisted && daysAfter === 2) {
+      // Ne pas envoyer J+2 si le lead est blacklisté
+      return;
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const rescheduleUrl = `${frontendUrl}/book/${appointment.leadId}`;
+
+    let subject: string;
+    let html: string;
+
+    if (daysAfter === 0) {
+      // Email J+0
+      subject = 'Nous avons raté notre RDV, reprogrammez ici';
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .button { display: inline-block; padding: 14px 28px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; font-size: 16px; }
+            .button:hover { background-color: #333; }
+            .info-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2>Nous avons raté notre rendez-vous</h2>
+            <p>Bonjour ${appointment.lead.firstName || ''},</p>
+            <p>Il semble que nous n'ayons pas pu nous connecter pour notre rendez-vous prévu le <strong>${appointment.scheduledAt.toLocaleDateString('fr-FR')} à ${appointment.scheduledAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong>.</p>
+            
+            <p>Pas de problème ! Nous serions ravis de reprogrammer un nouvel appel avec vous.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${rescheduleUrl}" class="button">📅 Reprogrammer mon rendez-vous</a>
+            </div>
+
+            <div class="info-box">
+              <p style="margin: 0; font-size: 14px; color: #666;">
+                Ce lien vous permettra de choisir un nouveau créneau qui vous convient mieux.
+              </p>
+            </div>
+
+            <p>À bientôt,<br>L'équipe KLOZD</p>
+          </div>
+        </body>
+        </html>
+      `;
+    } else {
+      // Email J+2
+      subject = 'Dernière chance de réserver...';
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .button { display: inline-block; padding: 14px 28px; background-color: #000; color: #fff; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; font-size: 16px; }
+            .button:hover { background-color: #333; }
+            .urgent-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 5px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2>Dernière chance de réserver votre appel</h2>
+            <p>Bonjour ${appointment.lead.firstName || ''},</p>
+            <p>Il y a 2 jours, nous avions prévu un rendez-vous ensemble, mais nous n'avons pas pu nous connecter.</p>
+            
+            <div class="urgent-box">
+              <p style="margin: 0; font-weight: bold;">⏰ C'est votre dernière chance de réserver un créneau !</p>
+            </div>
+            
+            <p>Nous serions ravis de vous parler et de voir comment nous pouvons vous aider.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${rescheduleUrl}" class="button">📅 Réserver maintenant</a>
+            </div>
+
+            <p>À bientôt,<br>L'équipe KLOZD</p>
+          </div>
+        </body>
+        </html>
+      `;
+    }
+
+    const emailJobData: SendEmailJobData = {
+      to: appointment.lead.email,
+      subject,
+      html,
+      metadata: {
+        appointmentId: appointment.id,
+        leadId: appointment.leadId,
+        type: 'no_show_recovery',
+        daysAfter,
+      },
+    };
+
+    if (this.queueService.isEnabled()) {
+      await this.queueService.addJob(
+        QUEUE_NAMES.NOTIFICATIONS,
+        NotificationJobType.SEND_EMAIL,
+        emailJobData,
+      );
+    } else {
+      await this.emailService.sendEmail(emailJobData.to, emailJobData.subject, emailJobData.html);
+    }
+
+    this.logger.log(`Email de relance no-show J+${daysAfter} envoyé pour l'appointment ${appointmentId}`);
+  }
+
+  /**
+   * Envoie un message WhatsApp directement (sans passer par la queue)
+   * Utilisé pour les notifications urgentes comme les confirmations de RDV
+   */
+  async sendWhatsAppMessage(to: string, message: string): Promise<boolean> {
+    try {
+      return await this.whatsappService.sendWhatsApp(to, message);
+    } catch (error) {
+      this.logger.error(`❌ Erreur lors de l'envoi du message WhatsApp à ${to}:`, error);
       return false;
     }
   }

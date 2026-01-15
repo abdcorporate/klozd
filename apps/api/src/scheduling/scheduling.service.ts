@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef 
 import { PrismaService } from '../prisma/prisma.service';
 import { AttributionService } from './services/attribution.service';
 import { VisioService } from './services/visio.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateAppointmentDto, UpdateAppointmentDto } from './dto/scheduling.dto';
 import {
   PaginationQueryDto,
@@ -17,6 +18,8 @@ export class SchedulingService {
     private prisma: PrismaService,
     private attributionService: AttributionService,
     private visioService: VisioService,
+    @Inject(forwardRef(() => NotificationsService))
+    private notificationsService: NotificationsService,
   ) {}
 
   async createAppointment(
@@ -31,6 +34,13 @@ export class SchedulingService {
 
     if (!lead) {
       throw new NotFoundException('Lead non trouvé');
+    }
+
+    // Vérifier si le lead est blacklisté (2ème no-show)
+    if (lead.status === 'DISQUALIFIED' && lead.disqualificationReason?.includes('blacklisté')) {
+      throw new BadRequestException(
+        'Ce lead a été blacklisté suite à 2 no-shows consécutifs. Il ne peut plus réserver de rendez-vous.',
+      );
     }
 
     // Si pas de closer assigné, en attribuer un
@@ -105,6 +115,13 @@ export class SchedulingService {
       data: { status: 'APPOINTMENT_SCHEDULED' },
     });
 
+    // Envoyer WhatsApp au closer pour confirmation (si numéro disponible)
+    try {
+      await this.sendWhatsAppToCloser(appointment.id);
+    } catch (error) {
+      // Ne pas faire échouer la création du rendez-vous si l'envoi WhatsApp échoue
+      console.error('Erreur lors de l\'envoi WhatsApp au closer:', error);
+    }
 
     // La confirmation T+0 sera envoyée automatiquement par le cron job
     // (voir scheduling-tasks.service.ts)
@@ -327,12 +344,69 @@ export class SchedulingService {
   async markNoShow(id: string, organizationId: string) {
     const appointment = await this.findOne(id, organizationId);
 
+    // Mettre à jour le statut de l'appointment
     const updated = await this.prisma.appointment.update({
       where: { id },
       data: {
         status: 'NO_SHOW',
       },
+      include: {
+        lead: true,
+      },
     });
+
+    const lead = updated.lead;
+
+    // Compter les no-shows précédents pour ce lead
+    const previousNoShows = await this.prisma.appointment.count({
+      where: {
+        leadId: lead.id,
+        status: 'NO_SHOW',
+        id: { not: id }, // Exclure le no-show actuel
+      },
+    });
+
+    // Réduire le score de priorité (si existe, sinon on le crée via une mise à jour)
+    // Pour l'instant, on utilise le closingProbability comme proxy pour le score de priorité
+    // ou on peut ajouter un champ priorityScore dans le schéma si nécessaire
+    const currentPriority = lead.closingProbability || 50;
+    const newPriority = Math.max(0, currentPriority - 10);
+
+    // Si c'est le 2ème no-show, disqualifier et blacklister le lead
+    if (previousNoShows >= 1) {
+      // 2ème no-show → disqualifier
+      await this.prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          status: 'DISQUALIFIED',
+          disqualifiedAt: new Date(),
+          disqualificationReason: '2 no-shows consécutifs - Lead blacklisté',
+          closingProbability: newPriority,
+          notes: lead.notes
+            ? `${lead.notes}\n\n[${new Date().toISOString()}] 2ème no-show détecté - Lead disqualifié et blacklisté`
+            : `[${new Date().toISOString()}] 2ème no-show détecté - Lead disqualifié et blacklisté`,
+        },
+      });
+    } else {
+      // 1er no-show → mettre à jour le statut et le score
+      await this.prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          status: 'DISQUALIFIED', // On peut créer un statut NO_SHOW si nécessaire
+          closingProbability: newPriority,
+          notes: lead.notes
+            ? `${lead.notes}\n\n[${new Date().toISOString()}] No-show détecté - Score réduit de -10`
+            : `[${new Date().toISOString()}] No-show détecté - Score réduit de -10`,
+        },
+      });
+    }
+
+    // Envoyer l'email J+0 immédiatement
+    try {
+      await this.notificationsService.sendNoShowRecoveryEmail(updated.id, 0);
+    } catch (error) {
+      this.logger.error(`Erreur lors de l'envoi de l'email J+0 pour le no-show ${id}:`, error);
+    }
 
     return updated;
   }
@@ -447,6 +521,13 @@ export class SchedulingService {
       throw new NotFoundException('Lead non trouvé');
     }
 
+    // Vérifier si le lead est blacklisté (2ème no-show)
+    if (lead.status === 'DISQUALIFIED' && lead.disqualificationReason?.includes('blacklisté')) {
+      throw new BadRequestException(
+        'Vous avez été blacklisté suite à 2 absences consécutives. Vous ne pouvez plus réserver de rendez-vous.',
+      );
+    }
+
     // Vérifier que le créneau est disponible
     const closer = await this.prisma.user.findUnique({
       where: { id: createAppointmentDto.assignedCloserId! },
@@ -481,10 +562,72 @@ export class SchedulingService {
     }
 
     // Créer le rendez-vous
-    return this.createAppointment(lead.organizationId, createAppointmentDto.leadId, {
+    const appointment = await this.createAppointment(lead.organizationId, createAppointmentDto.leadId, {
       ...createAppointmentDto,
       assignedCloserId: createAppointmentDto.assignedCloserId!,
     });
+
+    return appointment;
+  }
+
+  /**
+   * Envoie un message WhatsApp au closer pour confirmer qu'un prospect a réservé un rendez-vous
+   */
+  async sendWhatsAppToCloser(appointmentId: string): Promise<void> {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        lead: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        assignedCloser: {
+          include: {
+            closerSettings: {
+              select: {
+                pseudonyme: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!appointment || !appointment.assignedCloser) {
+      return;
+    }
+
+    const closer = appointment.assignedCloser;
+    const lead = appointment.lead;
+
+    // Vérifier que le closer a un numéro de téléphone
+    if (!closer.phone) {
+      return;
+    }
+
+    // Formater la date et l'heure
+    const appointmentDate = new Date(appointment.scheduledAt);
+    const dateStr = appointmentDate.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const timeStr = appointmentDate.toLocaleTimeString('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    // Construire le message
+    const leadName = lead.firstName || lead.email || 'Un prospect';
+    const message = `✅ Nouveau RDV confirmé !\n\n👤 Prospect : ${leadName}${lead.phone ? `\n📞 Tél : ${lead.phone}` : ''}\n📅 Date : ${dateStr}\n⏰ Heure : ${timeStr}\n\nBonne chance ! 🚀`;
+
+    // Envoyer le message WhatsApp
+    await this.notificationsService.sendWhatsAppMessage(closer.phone, message);
   }
 }
 

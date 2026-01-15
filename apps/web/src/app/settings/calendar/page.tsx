@@ -5,6 +5,8 @@ import { useAuthStore } from '@/store/auth-store';
 import { AppLayout } from '@/components/layout/app-layout';
 import { useRouter } from 'next/navigation';
 import { calendarConfigApi, usersApi } from '@/lib/api';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface CalendarConfig {
   id: string;
@@ -49,6 +51,7 @@ export default function CalendarConfigPage() {
   const [closers, setClosers] = useState<Closer[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [previewMonth, setPreviewMonth] = useState(new Date());
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -197,7 +200,7 @@ export default function CalendarConfigPage() {
           <p className="text-gray-600 mt-2">Paramétrez votre calendrier de rendez-vous</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 space-y-6">
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 space-y-6 overflow-visible">
           {/* Type d'événement */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -425,58 +428,149 @@ export default function CalendarConfigPage() {
             </div>
           </div>
 
-          {/* Confirmations */}
+          {/* SÉQUENCE AUTOMATIQUE DE CONFIRMATION */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">🔔 CONFIRMATIONS</h3>
-            <div className="space-y-2">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.emailConfirmationImmediate}
-                  onChange={(e) =>
-                    setConfig({ ...config, emailConfirmationImmediate: e.target.checked })
-                  }
-                  className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black"
-                />
-                <span className="text-sm text-gray-900">Email confirmation immédiate</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.emailReminder24h}
-                  onChange={(e) => setConfig({ ...config, emailReminder24h: e.target.checked })}
-                  className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black"
-                />
-                <span className="text-sm text-gray-900">Email rappel 24h avant</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.emailReminder1h}
-                  onChange={(e) => setConfig({ ...config, emailReminder1h: e.target.checked })}
-                  className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black"
-                />
-                <span className="text-sm text-gray-900">Email rappel 1h avant</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.smsReminder1h}
-                  onChange={(e) => setConfig({ ...config, smsReminder1h: e.target.checked })}
-                  className="w-4 h-4 text-black border-gray-300 rounded focus:ring-black"
-                />
-                <span className="text-sm text-gray-900">
-                  SMS rappel 1h avant (+0.05€/SMS)
-                </span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer opacity-50">
-                <input
-                  type="checkbox"
-                  disabled
-                  className="w-4 h-4 text-black border-gray-300 rounded"
-                />
-                <span className="text-sm text-gray-500">WhatsApp confirmation (Phase 2)</span>
-              </label>
+            <h3 className="text-lg font-semibold text-gray-900">🔔 SÉQUENCE AUTOMATIQUE DE CONFIRMATION</h3>
+            
+            {/* Timeline visuelle */}
+            <div className="border border-gray-200 rounded-lg p-6 bg-gray-50 overflow-visible">
+              <h4 className="text-sm font-semibold text-gray-700 mb-4">TIMELINE DES NOTIFICATIONS</h4>
+              
+              <div className="space-y-4 overflow-visible">
+                {/* T+0 */}
+                <div className="border-l-2 border-blue-500 pl-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">T+0 (Immédiat après réservation)</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1 ml-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>📧</span>
+                      <span className="flex-1 min-w-0">Email : "RDV confirmé le [date] à [heure]"</span>
+                      <label className="flex items-center gap-1 ml-auto whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={config.emailConfirmationImmediate}
+                          onChange={(e) =>
+                            setConfig({ ...config, emailConfirmationImmediate: e.target.checked })
+                          }
+                          className="w-3 h-3 text-black border-gray-300 rounded focus:ring-black"
+                        />
+                        <span className="text-xs">Actif</span>
+                      </label>
+                    </div>
+                    <div className="text-gray-500 ml-6">├─ Bouton "Ajouter à mon calendrier" (.ics)</div>
+                    <div className="text-gray-500 ml-6">├─ Lien visio (si appel dans &lt;48h)</div>
+                    <div className="text-gray-500 ml-6">└─ Contact closeuse (email/tel)</div>
+                  </div>
+                </div>
+
+                {/* T+10min */}
+                <div className="border-l-2 border-green-500 pl-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">T+10min</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1 ml-4">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5">💬</span>
+                      <div className="flex-1">
+                        <span className="block">WhatsApp : "Bonjour [Prénom], c'est [Closeuse]. J'ai hâte de vous parler le [date] 🎯"</span>
+                      </div>
+                      <span className="ml-auto text-gray-400 text-xs whitespace-nowrap">Automatique</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* J-1 */}
+                <div className="border-l-2 border-orange-500 pl-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">J-1 (24h avant)</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1 ml-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>📧</span>
+                      <span className="flex-1 min-w-0">Email : "Rappel : RDV demain à [heure]"</span>
+                      <label className="flex items-center gap-1 ml-auto whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={config.emailReminder24h}
+                          onChange={(e) => setConfig({ ...config, emailReminder24h: e.target.checked })}
+                          className="w-3 h-3 text-black border-gray-300 rounded focus:ring-black"
+                        />
+                        <span className="text-xs">Actif</span>
+                      </label>
+                    </div>
+                    <div className="text-gray-500 ml-6">├─ Bouton "Confirmer ma présence"</div>
+                    <div className="text-gray-500 ml-6">├─ Bouton "Reprogrammer"</div>
+                    <div className="text-gray-500 ml-6">└─ Lien visio (généré)</div>
+                  </div>
+                </div>
+
+                {/* H-1 */}
+                <div className="border-l-2 border-purple-500 pl-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">H-1 (1h avant)</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1 ml-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>📧</span>
+                      <span className="flex-1 min-w-0">Email : "Votre appel commence dans 1h"</span>
+                      <label className="flex items-center gap-1 ml-auto whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={config.emailReminder1h}
+                          onChange={(e) => setConfig({ ...config, emailReminder1h: e.target.checked })}
+                          className="w-3 h-3 text-black border-gray-300 rounded focus:ring-black"
+                        />
+                        <span className="text-xs">Actif</span>
+                      </label>
+                    </div>
+                    <div className="text-gray-500 ml-6">└─ Gros bouton "REJOINDRE L'APPEL" 🎥</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>📱</span>
+                      <span className="flex-1 min-w-0">SMS : "RDV dans 1h - Lien..."</span>
+                      <label className="flex items-center gap-1 ml-auto whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={config.smsReminder1h}
+                          onChange={(e) => setConfig({ ...config, smsReminder1h: e.target.checked })}
+                          className="w-3 h-3 text-black border-gray-300 rounded focus:ring-black"
+                        />
+                        <span className="text-xs">Actif (+0.05€/SMS)</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* T-0 */}
+                <div className="border-l-2 border-red-500 pl-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">T-0 (À l'heure du RDV)</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1 ml-4">
+                    <div className="flex items-center gap-2">
+                      <span>🔔</span>
+                      <span className="flex-1">Notification closeuse : "RDV commence!"</span>
+                      <span className="ml-auto text-gray-400 text-xs whitespace-nowrap">Automatique</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* T+15min */}
+                <div className="border-l-2 border-gray-400 pl-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-semibold text-gray-700">T+15min (Si prospect pas connecté)</span>
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1 ml-4">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5">📞</span>
+                      <div className="flex-1">
+                        <span className="block">Appel auto closeuse : "Le prospect n'est pas venu, marquer comme NO-SHOW ?"</span>
+                      </div>
+                      <span className="ml-auto text-gray-400 text-xs whitespace-nowrap">Automatique</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -489,6 +583,123 @@ export default function CalendarConfigPage() {
             >
               {saving ? 'Enregistrement...' : 'Enregistrer la configuration'}
             </button>
+          </div>
+        </div>
+
+        {/* Aperçu du calendrier - Design réaliste */}
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-8 max-w-2xl mx-auto">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">Aperçu du calendrier</h3>
+          
+          {/* Formulaire de réservation réaliste */}
+          <div className="border border-gray-200 rounded-lg p-6 bg-gradient-to-br from-gray-50 to-white">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+              Réservez votre appel stratégique
+            </h2>
+            <p className="text-center text-gray-600 mb-6">
+              avec un expert {user?.organizationName || 'KLOZD'}
+            </p>
+
+            {/* Durée et Format */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="text-center p-4 bg-white rounded-lg border border-gray-200">
+                <div className="text-sm text-gray-500 mb-1">Durée :</div>
+                <div className="text-lg font-semibold text-gray-900">{config.callDuration} minutes</div>
+              </div>
+              <div className="text-center p-4 bg-white rounded-lg border border-gray-200">
+                <div className="text-sm text-gray-500 mb-1">📹 Format :</div>
+                <div className="text-lg font-semibold text-gray-900">Visioconférence</div>
+              </div>
+            </div>
+
+            {/* Calendrier */}
+            <div className="mb-6">
+              <div className="text-sm font-semibold text-gray-700 mb-3">Sélectionnez une date :</div>
+              <div className="border border-gray-200 rounded-lg p-4 bg-white">
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMonth(subMonths(previewMonth, 1))}
+                    className="px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    ←
+                  </button>
+                  <h4 className="text-base font-semibold text-gray-900">
+                    {format(previewMonth, 'MMMM yyyy', { locale: fr }).charAt(0).toUpperCase() + format(previewMonth, 'MMMM yyyy', { locale: fr }).slice(1)}
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMonth(addMonths(previewMonth, 1))}
+                    className="px-3 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    →
+                  </button>
+                </div>
+                
+                {/* En-têtes des jours */}
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                  {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, index) => (
+                    <div key={index} className="text-center text-xs font-semibold text-gray-600 py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Jours du calendrier */}
+                <div className="grid grid-cols-7 gap-1">
+                  {(() => {
+                    const monthStart = startOfMonth(previewMonth);
+                    const monthEnd = endOfMonth(previewMonth);
+                    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+                    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+                    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+                    
+                    return calendarDays.map((day, index) => {
+                      const dayOfWeek = day.getDay() === 0 ? 6 : day.getDay() - 1; // Convert to Monday = 0
+                      const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                      const currentDayKey = dayKeys[dayOfWeek];
+                      const hasAvailability = config && config.availability[currentDayKey] && config.availability[currentDayKey].length > 0;
+                      const isCurrentMonth = isSameMonth(day, previewMonth);
+                      const isToday = isSameDay(day, new Date());
+                      
+                      return (
+                        <button
+                          key={index}
+                          type="button"
+                          disabled={!isCurrentMonth || !hasAvailability}
+                          className={`aspect-square rounded text-sm flex items-center justify-center transition-colors ${
+                            !isCurrentMonth
+                              ? 'text-gray-200 cursor-default'
+                              : hasAvailability
+                                ? isToday
+                                  ? 'bg-orange-500 text-white font-semibold ring-2 ring-orange-500 ring-offset-2 cursor-pointer hover:bg-orange-600'
+                                  : 'bg-gray-100 text-gray-700 cursor-pointer hover:bg-gray-200 font-medium'
+                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {format(day, 'd')}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Badges de sécurité et avantages */}
+            <div className="space-y-2 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="text-base">🔒</span>
+                <span>Vos données sont sécurisées</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="text-base">✅</span>
+                <span>Confirmation instantanée par email</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span className="text-base">📧</span>
+                <span>Rappels automatiques avant l'appel</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

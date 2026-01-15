@@ -338,6 +338,16 @@ export default function BookAppointmentPage() {
             </div>
           )}
 
+          {/* Informations du closer */}
+          {closerInfo && (
+            <div className="mb-6 text-center">
+              <p className="text-sm text-gray-600">
+                Avec {closerInfo.firstName}
+                {closerInfo.pseudonyme ? ` - ${closerInfo.pseudonyme}` : ''}
+              </p>
+            </div>
+          )}
+
           {/* Bouton de confirmation */}
           {selectedSlot && (
             <div className="mb-8">

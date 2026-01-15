@@ -225,7 +225,6 @@ export default function FormDetailPage() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{form.name}</h1>
-            <p className="text-gray-600 mt-2">{form.description || 'Aucune description'}</p>
           </div>
           <div className="flex items-center gap-3">
             <button
