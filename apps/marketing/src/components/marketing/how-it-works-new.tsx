@@ -50,16 +50,16 @@ export function HowItWorksNew() {
   return (
     <section id="how-it-works" className="section-padding bg-background">
       <div className="container-narrow">
-        <div className="text-center mb-16 animate-fade-in-up">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
+        <div className="text-center mb-10 sm:mb-16 animate-fade-in-up px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
             Comment <span className="text-gradient">KLOZD</span> fonctionne
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
             Un workflow simple à 3 étapes qui fait tout le reste pour toi. Reste focus.
           </p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+        <div className="grid md:grid-cols-3 gap-6 sm:gap-8 lg:gap-12 px-2">
           {steps.map((step, index) => {
             const delayClasses = ["delay-200", "delay-400", "delay-600"];
             return (

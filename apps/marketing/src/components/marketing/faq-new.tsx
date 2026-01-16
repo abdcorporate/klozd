@@ -47,13 +47,13 @@ export function FAQNew() {
       
       <div className="container-narrow relative z-10">
         <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-16 animate-fade-in-up">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
+        <div className="text-center mb-10 sm:mb-16 animate-fade-in-up px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
             Questions <span className="text-gradient">fréquentes</span>
           </h2>
         </div>
         
-        <div className="space-y-2.5">
+        <div className="space-y-2 sm:space-y-2.5 px-2">
           {faqs.map((faq, index) => {
             const delayClasses = ["delay-100", "delay-200", "delay-300", "delay-400", "delay-500", "delay-600", "delay-700"];
             return (
@@ -75,9 +75,9 @@ export function FAQNew() {
                 className="flex flex-1 items-center justify-between transition-all text-left w-full relative z-10 group/button"
                 aria-expanded={openIndex === index}
               >
-                <div className="flex items-center gap-3 flex-1 py-5 px-5">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 py-4 sm:py-5 px-4 sm:px-5">
                   {/* Premium icon indicator */}
-                  <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-500 ${
+                  <div className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-all duration-500 ${
                     openIndex === index
                       ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30"
                       : "bg-accent/50 text-muted-foreground group-hover/button:bg-primary/20 group-hover/button:text-primary"
@@ -92,7 +92,7 @@ export function FAQNew() {
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className={`transition-transform duration-500 ${
+                      className={`w-4 h-4 sm:w-[18px] sm:h-[18px] transition-transform duration-500 ${
                         openIndex === index ? "rotate-180" : ""
                       }`}
                     >
@@ -100,7 +100,7 @@ export function FAQNew() {
                     </svg>
                   </div>
                   
-                  <h3 className={`text-sm md:text-base font-bold transition-all duration-300 flex-1 leading-snug ${
+                  <h3 className={`text-sm sm:text-base font-bold transition-all duration-300 flex-1 leading-snug ${
                     openIndex === index
                       ? "text-foreground"
                       : "text-foreground/90 group-hover/button:text-primary"
@@ -120,10 +120,10 @@ export function FAQNew() {
                 aria-hidden={openIndex !== index}
               >
                 {faq.answer && (
-                  <div className="px-5 pb-5 pl-16 relative">
+                  <div className="px-4 sm:px-5 pb-4 sm:pb-5 pl-12 sm:pl-16 relative">
                     {/* Decorative line */}
-                    <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/30 to-transparent"></div>
-                    <p className="text-muted-foreground leading-relaxed text-sm">
+                    <div className="absolute left-4 sm:left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/30 to-transparent"></div>
+                    <p className="text-muted-foreground leading-relaxed text-xs sm:text-sm">
                       {faq.answer}
                     </p>
                   </div>

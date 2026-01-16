@@ -47,9 +47,9 @@ export function FooterNew() {
   };
 
   return (
-    <footer className="bg-foreground text-background py-12 md:py-16 animate-fade-in">
-      <div className="container-narrow">
-        <div className="grid md:grid-cols-4 gap-8 mb-12">
+    <footer className="bg-foreground text-background py-8 sm:py-12 md:py-16 animate-fade-in">
+      <div className="container-narrow px-4 sm:px-6">
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-8 sm:mb-12">
           <div className="md:col-span-2">
             <span className="font-bold tracking-tight text-2xl mb-4 block">
               <span className="text-primary">K</span>

@@ -64,22 +64,22 @@ export function Pricing() {
   return (
     <section id="pricing" className="section-padding section-dark">
       <div className="container-narrow">
-        <div className="text-center mb-16 animate-fade-in-up">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
+        <div className="text-center mb-10 sm:mb-16 animate-fade-in-up px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
             <span className="text-gradient">Tarification</span>
           </h2>
-          <p className="text-lg text-muted-foreground">Des prix qui tuent</p>
+          <p className="text-base sm:text-lg text-muted-foreground">Des prix qui tuent</p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-6 lg:gap-8 items-start">
+        <div className="grid md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 items-start px-2">
           {plans.map((plan, index) => {
             const delayClasses = ["delay-200", "delay-400", "delay-600"];
             return (
             <Card
               key={index}
-              className={`relative p-6 lg:p-8 transition-all duration-300 ${
+              className={`relative p-5 sm:p-6 lg:p-8 transition-all duration-300 ${
                 plan.popular
-                  ? "border-2 border-primary shadow-xl scale-105 hover:scale-[1.07]"
+                  ? "border-2 border-primary shadow-xl md:scale-105 md:hover:scale-[1.07]"
                   : "border-border hover:border-primary/50 hover:shadow-lg"
               }`}
             >

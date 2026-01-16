@@ -45,16 +45,16 @@ export function ForWho() {
   return (
     <section id="for-who" className="section-padding bg-background">
       <div className="container-narrow">
-        <div className="text-center mb-16 animate-fade-in-up">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">
+        <div className="text-center mb-10 sm:mb-16 animate-fade-in-up px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
             Pour <span className="text-gradient">qui</span> ?
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto">
             KLOZD s'adapte à tous les profils d'équipes commerciales
           </p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+        <div className="grid md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 px-2">
           {profiles.map((profile, index) => {
             const delayClasses = ["delay-200", "delay-400", "delay-600"];
             return (
