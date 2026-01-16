@@ -35,22 +35,19 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // Enable CORS
-  // Support multiple origins if CORS_ORIGINS is set (comma-separated)
-  // Otherwise fallback to FRONTEND_URL or localhost
-  // By default, include both web app (3000) and marketing app (3002) for development
-  const defaultOrigins = [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://localhost:3002', // Marketing app
-  ];
-  const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map((origin) => origin.trim())
-    : defaultOrigins;
+  const corsOrigins = (process.env.CORS_ORIGINS ?? "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
 
   app.enableCors({
-    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
-    credentials: true, // Important pour les cookies
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-CSRF-Token'],
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl, server-to-server
+      return cb(null, corsOrigins.includes(origin));
+    },
+    credentials: true,
+    methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    allowedHeaders: ["Content-Type","Authorization","Idempotency-Key","X-CSRF-Token"],
   });
 
   // Global validation pipe
