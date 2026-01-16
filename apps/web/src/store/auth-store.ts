@@ -16,7 +16,7 @@ interface AuthState {
     firstName: string;
     lastName: string;
     organizationName: string;
-  }) => Promise<void>;
+  }) => Promise<any>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -85,15 +85,43 @@ export const useAuthStore = create<AuthState>()(
         return response;
       },
 
-      logout: () => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
+      logout: async () => {
+        try {
+          await authApi.logout();
+        } catch (error) {
+          console.error('Erreur lors de la déconnexion:', error);
+        } finally {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('token');
+          }
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+          });
         }
-        set({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-        });
+      },
+
+      setToken: (token: string | null) => {
+        set({ token });
+      },
+
+      checkAuth: async () => {
+        try {
+          const response = await authApi.me();
+          const { accessToken, user } = response.data;
+          set({
+            user,
+            token: accessToken,
+            isAuthenticated: true,
+          });
+        } catch (error) {
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+          });
+        }
       },
     }),
     {

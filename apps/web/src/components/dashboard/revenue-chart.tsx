@@ -36,10 +36,10 @@ export function RevenueChart({ data }: RevenueChartProps) {
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="dateFormatted" />
         <YAxis />
-        <Tooltip formatter={(value: number) => new Intl.NumberFormat('fr-FR', {
+        <Tooltip formatter={(value: number | undefined) => value != null ? new Intl.NumberFormat('fr-FR', {
           style: 'currency',
           currency: 'EUR',
-        }).format(value)} />
+        }).format(value) : ''} />
         <Area
           type="monotone"
           dataKey="revenue"

@@ -209,6 +209,7 @@ export interface User {
 export interface AuthResponse {
   accessToken: string;
   user: User;
+  requiresVerification?: boolean;
 }
 
 // Fonction pour définir le token en mémoire

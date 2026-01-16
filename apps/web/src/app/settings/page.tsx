@@ -97,7 +97,6 @@ export default function SettingsPage() {
     defaultValues: {
       firstName: user?.firstName || '',
       lastName: user?.lastName || '',
-      email: user?.email || '',
       password: '',
     },
   });

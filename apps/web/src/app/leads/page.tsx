@@ -95,7 +95,7 @@ function LeadsPageContent() {
           // Si cursor existe, ajouter les items aux existants (charger plus)
           // Sinon, remplacer les items (nouvelle recherche/filtre)
           if (cursor) {
-            pagination.setItems((prevItems) => [...prevItems, ...response.data.items]);
+            pagination.setItems([...pagination.items, ...response.data.items]);
           } else {
             pagination.setItems(response.data.items);
           }
@@ -104,7 +104,7 @@ function LeadsPageContent() {
           // Fallback for old format
           const items = Array.isArray(response.data) ? response.data : (response.data?.data || []);
           if (cursor) {
-            pagination.setItems((prevItems) => [...prevItems, ...items]);
+            pagination.setItems([...pagination.items, ...items]);
           } else {
             pagination.setItems(items);
           }
