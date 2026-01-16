@@ -171,7 +171,7 @@ export class WaitlistService {
           <tr>
             <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
               <p style="margin: 0 0 10px 0; color: #718096; font-size: 14px;">
-                KLOZD - Le CRM tout-en-un pour infopreneurs et équipes de closing
+                KLOZD - Le CRM tout-en-un
               </p>
               <p style="margin: 0; color: #a0aec0; font-size: 12px;">
                 Cet email a été envoyé à ${email} car vous vous êtes inscrit à notre waitlist.
@@ -210,12 +210,9 @@ Cet email a été envoyé à ${email} car vous vous êtes inscrit à notre waitl
     `;
 
     try {
-      const sent = await this.emailService.sendEmail(email, subject, html, text);
-      if (sent) {
-        this.logger.log(`✅ Email de confirmation envoyé à ${email}`);
-      } else {
-        this.logger.warn(`⚠️ Email de confirmation non envoyé (service non configuré) pour ${email}`);
-      }
+      // sendEmail retourne maintenant le resendId (string) ou throw une erreur
+      const resendId = await this.emailService.sendEmail(email, subject, html, text);
+      this.logger.log(`✅ Email de confirmation envoyé à ${email} (Resend ID: ${resendId})`);
     } catch (error: any) {
       this.logger.error(`❌ Erreur lors de l'envoi de l'email de confirmation à ${email}: ${error.message}`);
       throw error; // Re-throw pour que l'appelant puisse gérer
