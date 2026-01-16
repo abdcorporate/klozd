@@ -23,6 +23,33 @@ async function bootstrap() {
     console.log('⚠️ Trust proxy disabled - using direct connection IP');
   }
 
+  // Enable CORS FIRST (before other middlewares/guards) to handle OPTIONS preflight
+  const isProduction = process.env.NODE_ENV === 'production';
+  const corsOriginsRaw = process.env.CORS_ORIGINS ?? "";
+  let corsOrigins: string[];
+
+  if (corsOriginsRaw) {
+    // Parse comma-separated origins
+    corsOrigins = corsOriginsRaw.split(",").map(s => s.trim()).filter(Boolean);
+  } else if (isProduction) {
+    // Production: default safe origins if CORS_ORIGINS not set
+    corsOrigins = ["https://my.klozd.app", "https://klozd.app"];
+  } else {
+    // Development: allow all origins
+    corsOrigins = [];
+  }
+
+  app.enableCors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl, server-to-server
+      if (corsOrigins.length === 0) return cb(null, true); // Dev: allow all
+      return cb(null, corsOrigins.includes(origin));
+    },
+    credentials: true,
+    methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+    allowedHeaders: ["Content-Type","Authorization","Idempotency-Key","X-CSRF-Token"],
+  });
+
   // Helmet pour la sécurité (avec configuration pour permettre les requêtes API)
   app.use(
     helmet({
@@ -33,22 +60,6 @@ async function bootstrap() {
 
   // Enable cookie parser
   app.use(cookieParser());
-
-  // Enable CORS
-  const corsOrigins = (process.env.CORS_ORIGINS ?? "")
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  app.enableCors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // curl, server-to-server
-      return cb(null, corsOrigins.includes(origin));
-    },
-    credentials: true,
-    methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-    allowedHeaders: ["Content-Type","Authorization","Idempotency-Key","X-CSRF-Token"],
-  });
 
   // Global validation pipe
   app.useGlobalPipes(
@@ -119,9 +130,19 @@ async function bootstrap() {
   console.log(`🚀 API KLOZD is running on http://${host}:${port}`);
   console.log(`📚 API Documentation: http://${host}:${port}/api-docs`);
   console.log(`🌍 Environment: ${nodeEnv}`);
+  console.log(`🌐 CORS Origins: ${corsOrigins.length > 0 ? corsOrigins.join(', ') : 'ALL (dev mode)'}`);
   console.log(`👷 Worker: ${process.env.RUN_WORKER === 'true' ? 'ENABLED' : 'DISABLED'} (BullMQ processors ${process.env.RUN_WORKER === 'true' ? 'will' : 'will NOT'} run)`);
   console.log(`⏰ Scheduler: ${process.env.RUN_SCHEDULER === 'true' ? 'ENABLED' : 'DISABLED'} (cron jobs ${process.env.RUN_SCHEDULER === 'true' ? 'will' : 'will NOT'} run)`);
   console.log(`📝 Logs activés - Vérifie cette console pour les erreurs`);
+  
+  // CORS Test instructions:
+  // 1. Test OPTIONS preflight:
+  //    curl -sS -D - -o /dev/null -X OPTIONS 'https://api.klozd.app/public/waitlist' \
+  //      -H 'Origin: https://my.klozd.app' \
+  //      -H 'Access-Control-Request-Method: POST' \
+  //      -H 'Access-Control-Request-Headers: content-type'
+  //    Should return 204/200 with Access-Control-Allow-Origin: https://my.klozd.app
+  // 2. Browser fetch from my.klozd.app should succeed without CORS errors
 }
 
 bootstrap().catch((error) => {

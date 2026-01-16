@@ -6,6 +6,11 @@ export class ThrottlerAuthGuard extends ThrottlerGuard {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     
+    // Bypass throttling for OPTIONS preflight requests (handled by CORS)
+    if (request.method === 'OPTIONS') {
+      return true;
+    }
+    
     // Si l'utilisateur est authentifié (déjà vérifié par JwtAuthGuard), on ignore le throttling
     if (request.user) {
       return true;
