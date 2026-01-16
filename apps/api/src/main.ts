@@ -24,27 +24,32 @@ async function bootstrap() {
   }
 
   // Enable CORS FIRST (before other middlewares/guards) to handle OPTIONS preflight
+  // This ensures OPTIONS requests are handled by CORS before any guard/middleware can block them
   const isProduction = process.env.NODE_ENV === 'production';
   const corsOriginsRaw = process.env.CORS_ORIGINS ?? "";
-  let corsOrigins: string[];
-
-  if (corsOriginsRaw) {
-    // Parse comma-separated origins
+  
+  // Resolve allowed origins:
+  // - If CORS_ORIGINS is set: use it (comma-separated, trimmed)
+  // - If missing/empty in production: use safe defaults
+  // - If missing/empty in dev: allow all origins
+  let corsOrigins: string[] | boolean;
+  
+  if (corsOriginsRaw.trim()) {
     corsOrigins = corsOriginsRaw.split(",").map(s => s.trim()).filter(Boolean);
   } else if (isProduction) {
-    // Production: default safe origins if CORS_ORIGINS not set
     corsOrigins = ["https://my.klozd.app", "https://klozd.app"];
   } else {
-    // Development: allow all origins
-    corsOrigins = [];
+    corsOrigins = true; // Dev: allow all origins
   }
 
   app.enableCors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // curl, server-to-server
-      if (corsOrigins.length === 0) return cb(null, true); // Dev: allow all
-      return cb(null, corsOrigins.includes(origin));
-    },
+    origin: typeof corsOrigins === 'boolean' 
+      ? corsOrigins 
+      : (origin, cb) => {
+          // Allow requests without Origin header (server-to-server, curl)
+          if (!origin) return cb(null, true);
+          return cb(null, corsOrigins.includes(origin));
+        },
     credentials: true,
     methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
     allowedHeaders: ["Content-Type","Authorization","Idempotency-Key","X-CSRF-Token"],
@@ -130,7 +135,10 @@ async function bootstrap() {
   console.log(`🚀 API KLOZD is running on http://${host}:${port}`);
   console.log(`📚 API Documentation: http://${host}:${port}/api-docs`);
   console.log(`🌍 Environment: ${nodeEnv}`);
-  console.log(`🌐 CORS Origins: ${corsOrigins.length > 0 ? corsOrigins.join(', ') : 'ALL (dev mode)'}`);
+  const corsOriginsDisplay = typeof corsOrigins === 'boolean' 
+    ? 'ALL (dev mode)' 
+    : corsOrigins.join(', ');
+  console.log(`🌐 CORS Origins: ${corsOriginsDisplay}`);
   console.log(`👷 Worker: ${process.env.RUN_WORKER === 'true' ? 'ENABLED' : 'DISABLED'} (BullMQ processors ${process.env.RUN_WORKER === 'true' ? 'will' : 'will NOT'} run)`);
   console.log(`⏰ Scheduler: ${process.env.RUN_SCHEDULER === 'true' ? 'ENABLED' : 'DISABLED'} (cron jobs ${process.env.RUN_SCHEDULER === 'true' ? 'will' : 'will NOT'} run)`);
   console.log(`📝 Logs activés - Vérifie cette console pour les erreurs`);
