@@ -104,11 +104,9 @@ export function WaitlistForm() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/public/waitlist`, {
+      const res = await fetch(`${API_URL}/public/waitlist`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: data.email,
           firstName: data.firstName,
@@ -120,24 +118,21 @@ export function WaitlistForm() {
           honeypot: data.honeypot || "",
           formRenderedAt: formRenderedAt,
         }),
-      }).catch((fetchError) => {
-        // Gérer les erreurs réseau (CORS, connexion refusée, etc.)
-        console.error('Erreur réseau:', fetchError);
-        throw new Error(
-          fetchError.message === 'Failed to fetch' 
-            ? "Impossible de contacter le serveur. Vérifiez votre connexion ou réessayez plus tard."
-            : `Erreur de connexion: ${fetchError.message}`
-        );
+        // credentials: "include", // mets-le seulement si tu utilises vraiment des cookies
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Erreur ${response.status}: ${response.statusText}`);
+      let responseData: any;
+      try {
+        responseData = await res.json();
+      } catch (jsonError) {
+        throw new Error(`Erreur ${res.status}: ${res.statusText}`);
       }
 
-      const result = await response.json();
+      if (!res.ok) {
+        throw new Error(Array.isArray(responseData.message) ? responseData.message.join(", ") : responseData.message || `Erreur ${res.status}`);
+      }
 
-      if (result.alreadyJoined) {
+      if (responseData.alreadyJoined) {
         setAlreadyJoined(true);
       }
 
