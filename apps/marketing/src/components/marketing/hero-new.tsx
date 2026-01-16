@@ -24,16 +24,16 @@ export function HeroNew() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-4 px-4 animate-fade-in-up delay-600">
-            <Button variant="primary" size="lg" className="w-full sm:w-auto h-11 text-base sm:text-lg px-6 sm:px-8 py-5 sm:py-6 rounded-xl bg-[#FFD700] hover:bg-[#FFC107] text-foreground shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105" href="/waitlist">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 w-5 h-5">
+            <Button variant="primary" size="lg" className="w-full sm:w-auto h-11 text-sm sm:text-base md:text-lg px-4 sm:px-6 md:px-8 py-5 sm:py-6 rounded-xl bg-[#FFD700] hover:bg-[#FFC107] text-foreground shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 whitespace-nowrap" href="/waitlist">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5 sm:mr-2 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0">
                 <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path>
                 <path d="M20 3v4"></path>
                 <path d="M22 5h-4"></path>
                 <path d="M4 17v2"></path>
                 <path d="M5 18H3"></path>
               </svg>
-              Faire partie des 100 premiers
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-2 w-5 h-5">
+              <span className="whitespace-nowrap">Faire partie des 100 premiers</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-1.5 sm:ml-2 w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0">
                 <path d="M7 7h10v10"></path>
                 <path d="M7 17 17 7"></path>
               </svg>
