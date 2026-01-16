@@ -6,6 +6,7 @@ import { WaitlistSecurityService } from './services/waitlist-security.service';
 
 export interface CreateWaitlistEntryDto {
   email: string;
+  name?: string; // Champ optionnel accepté mais non persistant (le modèle Prisma n'a pas ce champ)
   firstName?: string;
   role?: string;
   leadVolumeRange?: string;

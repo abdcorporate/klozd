@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength, Matches, Length } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength, Matches, Length, MinLength } from 'class-validator';
 
 export class CreateWaitlistEntryDto {
   @IsEmail({}, { message: 'Email invalide' })
@@ -7,6 +7,12 @@ export class CreateWaitlistEntryDto {
     message: 'Format d\'email invalide',
   })
   email: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name?: string;
 
   @IsOptional()
   @IsString()

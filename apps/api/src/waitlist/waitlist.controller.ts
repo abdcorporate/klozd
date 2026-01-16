@@ -77,6 +77,7 @@ export class WaitlistController {
       // Créer ou récupérer l'entrée
       const result = await this.waitlistService.createOrGetEntry({
         email: createDto.email,
+        name: createDto.name, // Accepté mais non persistant (le modèle Prisma n'a pas ce champ)
         firstName: createDto.firstName,
         role: createDto.role,
         leadVolumeRange: createDto.leadVolumeRange,

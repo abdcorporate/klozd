@@ -17,8 +17,8 @@ const formSchema = z.object({
   name: z.string().min(1, 'Le nom est requis'),
   description: z.string().optional(),
   slug: z.string().min(1, 'Le slug est requis').regex(/^[a-z0-9-]+$/, 'Le slug doit contenir uniquement des lettres minuscules, chiffres et tirets'),
-  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'ARCHIVED']).default('DRAFT'),
-  minScore: z.number().min(0).max(100).default(70),
+  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'ARCHIVED']),
+  minScore: z.number().min(0).max(100),
   qualifiedRedirectUrl: z.string().url().optional().or(z.literal('')),
   disqualifiedRedirectUrl: z.string().url().optional().or(z.literal('')),
   backgroundColor: z.string().optional(),
@@ -30,8 +30,8 @@ const formSchema = z.object({
     z.object({
       label: z.string().min(1, 'Le label est requis'),
       type: z.enum(['TEXT', 'EMAIL', 'PHONE', 'NUMBER', 'SELECT', 'RADIO', 'CHECKBOX', 'TEXTAREA', 'DATE', 'BUDGET', 'RATING']),
-      required: z.boolean().default(false),
-      order: z.number().default(0),
+      required: z.boolean(),
+      order: z.number(),
       options: z.string().optional(),
       scoringRulesJson: z.string().optional(),
     }),
@@ -54,6 +54,7 @@ export default function EditFormPage() {
   const methods = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      status: 'DRAFT' as const,
       minScore: 70,
       formFields: [],
     },
@@ -63,6 +64,7 @@ export default function EditFormPage() {
     register,
     control,
     handleSubmit,
+    getValues,
     formState: { errors },
     watch,
     setValue,
