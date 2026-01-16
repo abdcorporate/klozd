@@ -14,7 +14,6 @@ export class EmailService {
     const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
 
     if (resendApiKey) {
-      this.resendClient = new Resend(resendApiKey);
       this.emailProvider = 'RESEND';
       this.logger.log(`✅ Resend configuré pour l'envoi d'emails (clé: ${resendApiKey.substring(0, 10)}...)`);
     } else if (sendgridApiKey) {
@@ -27,21 +26,39 @@ export class EmailService {
 
   /**
    * Envoie un email via Resend ou SendGrid
+   * @returns Resend ID si succès, throws si échec
    */
-  async sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
-    const from = this.configService.get<string>('EMAIL_FROM') || 'noreply@klozd.com';
+  async sendEmail(to: string, subject: string, html: string, text?: string): Promise<string> {
+    // Utiliser notifications.klozd.app comme domaine FROM par défaut
+    const from = this.configService.get<string>('EMAIL_FROM') || 'no-reply@notifications.klozd.app';
+    const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
+    
+    // Vérifier que l'API key est présente à runtime
+    if (!resendApiKey) {
+      const error = new Error('RESEND_API_KEY n\'est pas configuré dans les variables d\'environnement');
+      this.logger.error(`❌ ${error.message}`);
+      throw error;
+    }
+
+    // Log de l'API key (prefix seulement)
+    this.logger.log(`🔑 Resend API Key: ${resendApiKey.substring(0, 10)}...`);
 
     if (!this.emailProvider) {
-      this.logger.warn('Aucun service d\'email configuré, email non envoyé');
+      const error = new Error('Aucun service d\'email configuré (RESEND_API_KEY ou SENDGRID_API_KEY)');
+      this.logger.error(`❌ ${error.message}`);
       this.logger.debug(`Email simulé: ${to} - ${subject}`);
-      return false;
+      throw error;
     }
 
     try {
-      if (this.emailProvider === 'RESEND' && this.resendClient) {
-        this.logger.log(`📧 Tentative d'envoi d'email via Resend de ${from} à ${to} - Sujet: ${subject}`);
+      if (this.emailProvider === 'RESEND') {
+        // Créer le client Resend à chaque appel pour garantir la lecture de la clé à runtime
+        const resendClient = new Resend(resendApiKey);
         
-        const result = await this.resendClient.emails.send({
+        // Log avant l'envoi
+        this.logger.log(`📤 Envoi d'email via Resend: FROM=${from}, TO=${to}, SUBJECT=${subject}`);
+        
+        const result = await resendClient.emails.send({
           from,
           to,
           subject,
@@ -60,13 +77,29 @@ export class EmailService {
             this.logger.error('💡 Le domaine utilisé dans EMAIL_FROM doit être vérifié dans Resend Dashboard');
             this.logger.error('💡 Vérifiez sur https://resend.com/domains que le domaine est bien vérifié');
           }
-          return false;
+          throw new Error(`Resend error: ${result.error.message || 'Unknown error'} (code: ${result.error.name || 'N/A'})`);
         }
 
-        this.logger.log(`✅ Email envoyé via Resend à ${to}: ${subject} (ID: ${result.data?.id || 'N/A'})`);
-        return true;
+        if (!result.data?.id) {
+          const error = new Error('Resend a retourné un succès mais aucun ID d\'email. Vérifiez la réponse de l\'API.');
+          this.logger.error(`❌ ${error.message}`);
+          this.logger.error(`❌ Réponse complète: ${JSON.stringify(result, null, 2)}`);
+          throw error;
+        }
+
+        // Log après l'envoi avec resendId
+        this.logger.log(`✅ Email envoyé via Resend à ${to}: ${subject} (Resend ID: ${result.data.id})`);
+        return result.data.id;
       } else if (this.emailProvider === 'SENDGRID') {
         const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
+        if (!sendgridApiKey) {
+          const error = new Error('SENDGRID_API_KEY n\'est pas configuré');
+          this.logger.error(`❌ ${error.message}`);
+          throw error;
+        }
+
+        this.logger.log(`📤 Envoi d'email via SendGrid: FROM=${from}, TO=${to}, SUBJECT=${subject}`);
+        
         const response = await axios.post(
           'https://api.sendgrid.com/v3/mail/send',
           {
@@ -100,17 +133,30 @@ export class EmailService {
           },
         );
 
-        this.logger.log(`Email envoyé via SendGrid à ${to}: ${subject}`);
-        return response.status === 202;
+        if (response.status !== 202) {
+          const error = new Error(`SendGrid a retourné un statut inattendu: ${response.status}`);
+          this.logger.error(`❌ ${error.message}`);
+          throw error;
+        }
+
+        const messageId = response.headers['x-message-id'] || `sendgrid-${Date.now()}`;
+        this.logger.log(`✅ Email envoyé via SendGrid à ${to}: ${subject} (Message ID: ${messageId})`);
+        return messageId;
       }
     } catch (error: any) {
+      // Ne pas avaler l'erreur - la logger et la rethrow
       this.logger.error(`❌ Erreur lors de l'envoi d'email à ${to}:`, error.response?.data || error.message);
       this.logger.error(`❌ Stack trace:`, error.stack);
-      this.logger.error(`❌ Erreur complète:`, JSON.stringify(error, null, 2));
-      return false;
+      this.logger.error(`❌ Email FROM: ${from}`);
+      this.logger.error(`❌ Email TO: ${to}`);
+      this.logger.error(`❌ Subject: ${subject}`);
+      
+      // Re-throw l'erreur pour que le controller retourne 500
+      throw error;
     }
 
-    return false;
+    // Ne devrait jamais arriver ici
+    throw new Error('Aucun provider d\'email configuré');
   }
 
   /**
@@ -185,8 +231,9 @@ export class EmailService {
 
   /**
    * Envoie un email de vérification d'adresse email avec un code à 6 chiffres
+   * @returns Resend ID si succès, throws si échec
    */
-  async sendVerificationEmail(to: string, verificationCode: string, firstName: string): Promise<boolean> {
+  async sendVerificationEmail(to: string, verificationCode: string, firstName: string): Promise<string> {
     this.logger.log(`📧 Tentative d'envoi d'email de vérification à ${to} avec le code ${verificationCode}`);
     
     const subject = 'Vérifiez votre adresse email - KLOZD';
@@ -230,15 +277,10 @@ Ce code expirera dans 15 minutes. Si vous n'avez pas créé de compte, vous pouv
 L'équipe KLOZD
     `;
 
-    const result = await this.sendEmail(to, subject, html, text);
-    
-    if (result) {
-      this.logger.log(`✅ Email de vérification envoyé avec succès à ${to}`);
-    } else {
-      this.logger.error(`❌ Échec de l'envoi de l'email de vérification à ${to}`);
-    }
-    
-    return result;
+    // sendEmail retourne maintenant le resendId ou throw une erreur
+    const resendId = await this.sendEmail(to, subject, html, text);
+    this.logger.log(`✅ Email de vérification envoyé avec succès à ${to} (Resend ID: ${resendId})`);
+    return resendId;
   }
 
   /**

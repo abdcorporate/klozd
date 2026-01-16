@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 
@@ -51,12 +52,23 @@ export function FooterNew() {
       <div className="container-narrow px-4 sm:px-6">
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-8 sm:mb-12">
           <div className="md:col-span-2">
-            <span className="font-bold tracking-tight text-2xl mb-4 block">
-              <span className="text-primary">K</span>
-              <span>LOZD</span>
-            </span>
+            <div className="mb-4 flex items-center" style={{ minHeight: '48px' }}>
+              <img
+                src="/logo.png"
+                alt="KLOZD"
+                width={180}
+                height={60}
+                className="h-10 md:h-12 w-auto"
+                style={{ 
+                  maxWidth: '180px',
+                  opacity: 1,
+                  visibility: 'visible',
+                  display: 'block'
+                }}
+              />
+            </div>
             <p className="text-background/70 text-sm max-w-xs">
-              Le CRM qui veut vraiment t'aider à closer plus de deals.
+              Le CRM tout-en-un.
             </p>
           </div>
           

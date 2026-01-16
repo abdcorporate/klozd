@@ -19,8 +19,7 @@ export function Hero() {
             </div>
             
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 leading-tight text-balance">
-              Le CRM tout-en-un pour{" "}
-              <span className="text-brand-orange">closer plus de deals</span>
+              Le CRM tout-en-un{" "}
             </h1>
             
             <p className="text-xl md:text-2xl text-slate-600 leading-relaxed text-balance max-w-2xl mx-auto lg:mx-0">

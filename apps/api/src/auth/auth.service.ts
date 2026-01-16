@@ -1,19 +1,23 @@
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../notifications/services/email.service';
 import { BruteForceService } from './services/brute-force.service';
 import { RefreshTokenService } from './services/refresh-token.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private notificationsService: NotificationsService,
+    private emailService: EmailService,
     private bruteForceService: BruteForceService,
     private refreshTokenService: RefreshTokenService,
   ) {}
@@ -450,30 +454,30 @@ export class AuthService {
 
   /**
    * Envoie un email de test de vérification (pour les tests)
+   * Utilise directement EmailService pour obtenir le resendId et bypass la queue
    */
   async sendTestVerificationEmail(email: string) {
     // Générer un code de test à 6 chiffres
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     
     try {
-      const result = await this.notificationsService.sendVerificationEmail(
+      // Utiliser directement emailService pour bypass la queue et obtenir le resendId
+      const resendId = await this.emailService.sendVerificationEmail(
         email,
         verificationCode,
         'Test',
       );
       
-      if (result) {
-        return {
-          message: `Email de test envoyé avec succès à ${email}`,
-          verificationCode, // Pour les tests, on retourne le code
-          success: true,
-        };
-      } else {
-        throw new BadRequestException('Échec de l\'envoi de l\'email. Vérifiez la configuration Resend.');
-      }
+      return {
+        success: true,
+        message: `Email de test envoyé avec succès à ${email}`,
+        resendId,
+        verificationCode, // Pour les tests, on retourne le code
+      };
     } catch (error: any) {
-      console.error('Erreur lors de l\'envoi de l\'email de test:', error);
-      throw new BadRequestException(`Erreur lors de l'envoi de l'email: ${error.message || 'Erreur inconnue'}`);
+      this.logger.error('Erreur lors de l\'envoi de l\'email de test:', error);
+      // Ne pas avaler l'erreur - rethrow pour que le controller retourne 500
+      throw new InternalServerErrorException(`Erreur lors de l'envoi de l'email: ${error.message || 'Erreur inconnue'}`);
     }
   }
 

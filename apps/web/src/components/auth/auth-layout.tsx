@@ -4,11 +4,11 @@ import Image from 'next/image';
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 relative">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8 relative">
       {/* Motifs subtils en arrière-plan */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-brand-orange/4 to-transparent rounded-full blur-[100px]"></div>
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-brand-purple/4 to-transparent rounded-full blur-[100px]"></div>
+      <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-30">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl"></div>
       </div>
       <div className="max-w-md w-full space-y-8 relative z-10">
         <div className="text-center">
@@ -23,7 +23,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
               unoptimized
             />
           </div>
-          <p className="text-gray-600">La plateforme tout-en-un</p>
+          <p className="text-muted-foreground">Le CRM tout-en-un</p>
         </div>
         {children}
       </div>

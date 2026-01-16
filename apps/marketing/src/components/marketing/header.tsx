@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
@@ -22,12 +23,17 @@ export function Header() {
     }`}>
       <div className="container-narrow">
         <div className="flex items-center justify-between h-16 md:h-20">
-          <a href="/" className="flex items-center group animate-slide-in-left delay-100">
-            <span className="font-bold tracking-tight text-xl md:text-2xl transition-colors group-hover:text-primary">
-              <span className="text-primary">K</span>
-              <span className="text-foreground">LOZD</span>
-            </span>
-          </a>
+          <Link href="/" className="flex items-center group animate-slide-in-left delay-100">
+            <Image
+              src="/logo.png"
+              alt="KLOZD"
+              width={180}
+              height={60}
+              className="h-8 md:h-10 w-auto transition-opacity group-hover:opacity-90"
+              priority
+              unoptimized
+            />
+          </Link>
           
           <div className="hidden md:flex items-center gap-8 animate-slide-in-right delay-200">
             <Button variant="primary" size="sm" className="h-10 px-6 rounded-xl font-semibold bg-[#FFD700] hover:bg-[#FFC107] text-black shadow-lg hover:shadow-xl" href="/waitlist">

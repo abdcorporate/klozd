@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "KLOZD - Le CRM tout-en-un pour closer plus de deals",
+  title: "KLOZD - Le CRM tout-en-un",
   description:
     "KLOZD est le CRM intelligent qui remplace 6+ outils. Trackez vos leads, closez vos deals et pilotez votre croissance avec une seule plateforme.",
   keywords: ["CRM", "leads", "ventes", "pipeline", "automatisation", "IA", "intelligence artificielle", "prospection"],
