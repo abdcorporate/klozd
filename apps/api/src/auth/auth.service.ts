@@ -457,25 +457,44 @@ export class AuthService {
    * Utilise directement EmailService pour obtenir le resendId et bypass la queue
    */
   async sendTestVerificationEmail(email: string) {
+    // Validation stricte du format email (format regex RFC 5322 simplifié)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.logger.error(`❌ Format d'email invalide reçu: ${email}`);
+      throw new BadRequestException(`Format d'email invalide: ${email}`);
+    }
+
+    // Normaliser l'email (lowercase, trim)
+    const normalizedEmail = email.toLowerCase().trim();
+    if (normalizedEmail !== email) {
+      this.logger.log(`📧 Email normalisé: "${email}" -> "${normalizedEmail}"`);
+    }
+
     // Générer un code de test à 6 chiffres
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    this.logger.log(`📧 Tentative d'envoi d'email de test à: ${normalizedEmail}`);
     
     try {
       // Utiliser directement emailService pour bypass la queue et obtenir le resendId
       const resendId = await this.emailService.sendVerificationEmail(
-        email,
+        normalizedEmail,
         verificationCode,
         'Test',
       );
       
+      this.logger.log(`✅ Email de test envoyé avec succès à ${normalizedEmail} (Resend ID: ${resendId})`);
+      
       return {
         success: true,
-        message: `Email de test envoyé avec succès à ${email}`,
+        message: `Email de test envoyé avec succès à ${normalizedEmail}`,
         resendId,
         verificationCode, // Pour les tests, on retourne le code
+        email: normalizedEmail, // Retourner l'email normalisé pour confirmation
       };
     } catch (error: any) {
-      this.logger.error('Erreur lors de l\'envoi de l\'email de test:', error);
+      this.logger.error(`❌ Erreur lors de l'envoi de l'email de test à ${normalizedEmail}:`, error.message || error);
+      this.logger.error(`❌ Stack trace:`, error.stack);
       // Ne pas avaler l'erreur - rethrow pour que le controller retourne 500
       throw new InternalServerErrorException(`Erreur lors de l'envoi de l'email: ${error.message || 'Erreur inconnue'}`);
     }

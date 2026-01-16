@@ -55,8 +55,21 @@ export class EmailService {
         // Créer le client Resend à chaque appel pour garantir la lecture de la clé à runtime
         const resendClient = new Resend(resendApiKey);
         
-        // Log avant l'envoi
-        this.logger.log(`📤 Envoi d'email via Resend: FROM=${from}, TO=${to}, SUBJECT=${subject}`);
+        // Validation stricte de l'email avant envoi
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(to)) {
+          const error = new Error(`Format d'email invalide: ${to}`);
+          this.logger.error(`❌ ${error.message}`);
+          throw error;
+        }
+
+        // Log structuré avant l'envoi
+        this.logger.log(`📤 Envoi d'email via Resend`, {
+          from,
+          to,
+          subject,
+          emailLength: to.length,
+        });
         
         const result = await resendClient.emails.send({
           from,
@@ -67,16 +80,22 @@ export class EmailService {
         });
 
         if (result.error) {
-          this.logger.error('❌ Erreur Resend:', JSON.stringify(result.error, null, 2));
-          this.logger.error(`❌ Détails de l'erreur: ${result.error.message || 'Erreur inconnue'}`);
-          this.logger.error(`❌ Code d'erreur: ${result.error.name || 'N/A'}`);
-          this.logger.error(`❌ Email FROM utilisé: ${from}`);
-          this.logger.error(`❌ Email TO: ${to}`);
+          // Log structuré de l'erreur Resend
+          this.logger.error(`❌ Erreur Resend lors de l'envoi`, {
+            from,
+            to,
+            subject,
+            errorName: result.error.name || 'N/A',
+            errorMessage: result.error.message || 'Erreur inconnue',
+            errorDetails: JSON.stringify(result.error, null, 2),
+          });
+          
           // Erreur courante : domaine non vérifié
           if (result.error.message?.includes('domain') || result.error.message?.includes('verified')) {
             this.logger.error('💡 Le domaine utilisé dans EMAIL_FROM doit être vérifié dans Resend Dashboard');
             this.logger.error('💡 Vérifiez sur https://resend.com/domains que le domaine est bien vérifié');
           }
+          
           throw new Error(`Resend error: ${result.error.message || 'Unknown error'} (code: ${result.error.name || 'N/A'})`);
         }
 
@@ -87,8 +106,13 @@ export class EmailService {
           throw error;
         }
 
-        // Log après l'envoi avec resendId
-        this.logger.log(`✅ Email envoyé via Resend à ${to}: ${subject} (Resend ID: ${result.data.id})`);
+        // Log structuré après l'envoi avec resendId
+        this.logger.log(`✅ Email envoyé via Resend avec succès`, {
+          from,
+          to,
+          subject,
+          resendId: result.data.id,
+        });
         return result.data.id;
       } else if (this.emailProvider === 'SENDGRID') {
         const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');

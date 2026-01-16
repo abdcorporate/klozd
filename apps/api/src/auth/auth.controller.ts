@@ -17,6 +17,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { TestEmailDto } from './dto/test-email.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CsrfGuard } from './guards/csrf.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -236,7 +237,8 @@ export class AuthController {
 
   @Post('test-email')
   @HttpCode(HttpStatus.OK)
-  async testEmail(@Body() body: { email: string }) {
+  async testEmail(@Body() body: TestEmailDto) {
+    // La validation du format email est assurée par class-validator via TestEmailDto
     return this.authService.sendTestVerificationEmail(body.email);
   }
 
