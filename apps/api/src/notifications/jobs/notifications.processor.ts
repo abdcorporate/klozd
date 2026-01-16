@@ -194,37 +194,28 @@ export class NotificationsProcessor implements OnModuleInit, OnModuleDestroy {
       }
 
       // Send email
-      const result = await this.emailService.sendEmail(to, subject, html, text);
+      // sendEmail retourne maintenant le resendId (string) ou throw une erreur
+      const resendId = await this.emailService.sendEmail(to, subject, html, text);
 
-      if (result) {
-        // Extract provider message ID from email service response
-        // Note: This requires updating EmailService to return messageId
-        // For now, we'll mark as sent without providerMessageId
-        await this.messageDeliveryService.markSent(delivery.id);
+      // Mark delivery as sent with provider message ID
+      await this.messageDeliveryService.markSent(delivery.id, resendId);
 
-        // Mettre à jour la notification si un ID est fourni
-        if (metadata?.notificationId) {
-          try {
-            await this.prisma.notification.update({
-              where: { id: metadata.notificationId },
-              data: {
-                status: 'SENT',
-                sentAt: new Date(),
-              },
-            });
-          } catch (updateError) {
-            this.logger.warn(`Impossible de mettre à jour la notification ${metadata.notificationId}:`, updateError);
-          }
+      // Mettre à jour la notification si un ID est fourni
+      if (metadata?.notificationId) {
+        try {
+          await this.prisma.notification.update({
+            where: { id: metadata.notificationId },
+            data: {
+              status: 'SENT',
+              sentAt: new Date(),
+            },
+          });
+        } catch (updateError) {
+          this.logger.warn(`Impossible de mettre à jour la notification ${metadata.notificationId}:`, updateError);
         }
-      } else {
-        await this.messageDeliveryService.markFailed(
-          delivery.id,
-          'EMAIL_SERVICE_FALSE',
-          'Email service returned false',
-        );
       }
 
-      return result;
+      return true;
     } catch (error: any) {
       this.logger.error(`Erreur lors de l'envoi de l'email à ${to}:`, error.message);
       

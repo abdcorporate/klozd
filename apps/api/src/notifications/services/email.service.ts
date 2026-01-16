@@ -177,7 +177,13 @@ export class EmailService {
       <p>À bientôt,<br>L'équipe KLOZD</p>
     `;
 
-    return this.sendEmail(to, subject, html);
+    try {
+      const resendId = await this.sendEmail(to, subject, html);
+      return !!resendId; // Convertir string en boolean
+    } catch (error) {
+      this.logger.error(`❌ Erreur lors de l'envoi de la confirmation de RDV à ${to}:`, error);
+      return false;
+    }
   }
 
   /**
@@ -198,7 +204,13 @@ export class EmailService {
       <p>À bientôt,<br>L'équipe KLOZD</p>
     `;
 
-    return this.sendEmail(to, subject, html);
+    try {
+      const resendId = await this.sendEmail(to, subject, html);
+      return !!resendId; // Convertir string en boolean
+    } catch (error) {
+      this.logger.error(`❌ Erreur lors de l'envoi du rappel de RDV à ${to}:`, error);
+      return false;
+    }
   }
 
   /**
@@ -226,7 +238,13 @@ export class EmailService {
       <p>À bientôt,<br>L'équipe KLOZD</p>
     `;
 
-    return this.sendEmail(to, subject, html);
+    try {
+      const resendId = await this.sendEmail(to, subject, html);
+      return !!resendId; // Convertir string en boolean
+    } catch (error) {
+      this.logger.error(`❌ Erreur lors de l'envoi de l'email de récupération d'abandon à ${to}:`, error);
+      return false;
+    }
   }
 
   /**
@@ -352,15 +370,14 @@ Cette invitation expirera dans 7 jours. Si vous n'avez pas demandé cette invita
 L'équipe KLOZD
     `;
 
-    const result = await this.sendEmail(to, subject, html, text);
-    
-    if (result) {
-      this.logger.log(`✅ Email d'invitation envoyé avec succès à ${to}`);
-    } else {
-      this.logger.error(`❌ Échec de l'envoi de l'email d'invitation à ${to}`);
+    try {
+      const resendId = await this.sendEmail(to, subject, html, text);
+      this.logger.log(`✅ Email d'invitation envoyé avec succès à ${to} (Resend ID: ${resendId})`);
+      return true;
+    } catch (error) {
+      this.logger.error(`❌ Échec de l'envoi de l'email d'invitation à ${to}:`, error);
+      return false;
     }
-    
-    return result;
   }
 }
 

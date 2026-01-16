@@ -706,13 +706,14 @@ L'équipe KLOZD
         return true;
       } else {
         // Fallback synchrone
-        const result = await this.emailService.sendEmail(email, subject, html, text);
-        if (result) {
-          this.logger.log(`✅ Email de vérification envoyé à ${email}`);
-        } else {
-          this.logger.warn(`⚠️ Échec de l'envoi de l'email de vérification à ${email}`);
+        try {
+          const resendId = await this.emailService.sendEmail(email, subject, html, text);
+          this.logger.log(`✅ Email de vérification envoyé à ${email} (Resend ID: ${resendId})`);
+          return true;
+        } catch (error) {
+          this.logger.warn(`⚠️ Échec de l'envoi de l'email de vérification à ${email}:`, error);
+          return false;
         }
-        return result;
       }
     } catch (error) {
       this.logger.error(`❌ Erreur lors de l'envoi de l'email de vérification à ${email}:`, error);
@@ -810,13 +811,14 @@ L'équipe KLOZD
         return true;
       } else {
         // Fallback synchrone
-        const result = await this.emailService.sendEmail(email, subject, html, text);
-        if (result) {
-          this.logger.log(`✅ Email d'invitation envoyé à ${email} pour ${organizationName}`);
-        } else {
-          this.logger.warn(`⚠️ Échec de l'envoi de l'email d'invitation à ${email}`);
+        try {
+          const resendId = await this.emailService.sendEmail(email, subject, html, text);
+          this.logger.log(`✅ Email d'invitation envoyé à ${email} pour ${organizationName} (Resend ID: ${resendId})`);
+          return true;
+        } catch (error) {
+          this.logger.warn(`⚠️ Échec de l'envoi de l'email d'invitation à ${email}:`, error);
+          return false;
         }
-        return result;
       }
     } catch (error) {
       this.logger.error(`❌ Erreur lors de l'envoi de l'email d'invitation à ${email}:`, error);
