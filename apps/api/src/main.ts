@@ -53,6 +53,8 @@ async function bootstrap() {
     credentials: true,
     methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
     allowedHeaders: ["Content-Type","Authorization","Idempotency-Key","X-CSRF-Token"],
+    preflightContinue: false, // Let CORS middleware handle OPTIONS and send response
+    optionsSuccessStatus: 204, // Return 204 for successful OPTIONS preflight
   });
 
   // Helmet pour la sécurité (avec configuration pour permettre les requêtes API)
