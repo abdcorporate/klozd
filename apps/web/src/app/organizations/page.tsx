@@ -155,9 +155,7 @@ export default function OrganizationsPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Organisations <span className="text-sm font-normal text-gray-500">(VUE SUPER ADMIN)</span>
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900">Organisations</h1>
             <p className="text-gray-600 mt-2">
               Gérez toutes les organisations de la plateforme
             </p>

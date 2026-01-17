@@ -399,14 +399,7 @@ function UsersPageContent() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-slate-900">Utilisateurs</h1>
-              {user?.role === 'SUPER_ADMIN' && (
-                <span className="px-3 py-1 text-xs font-semibold bg-slate-900 text-white rounded-full">
-                  VUE SUPER_ADMIN
-                </span>
-              )}
-            </div>
+            <h1 className="text-3xl font-bold text-slate-900">Utilisateurs</h1>
             <p className="text-slate-600 mt-2">
               {activeTab === 'users'
                 ? user?.role === 'SUPER_ADMIN'
