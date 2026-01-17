@@ -242,9 +242,9 @@ export default function AdminWaitlistPage() {
                         <div className="text-sm text-gray-600">{entry.firstName || '-'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
+                        <div className="text-sm text-gray-600">
                           {getRoleLabel(entry.role)}
-                        </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-600">
