@@ -122,23 +122,21 @@ export class AuthService {
       },
     });
 
-    // Envoyer l'email de vérification
-    console.log(`📧 Préparation de l'envoi de l'email de vérification à ${user.email} avec le code ${verificationCode}`);
+    // Envoyer l'email de vérification directement (sans queue) pour garantir l'envoi immédiat
+    this.logger.log(`📧 Préparation de l'envoi de l'email de vérification à ${user.email} avec le code ${verificationCode}`);
     try {
-      const emailSent = await this.notificationsService.sendVerificationEmail(
+      // Utiliser emailService directement (comme pour waitlist) pour éviter la queue et garantir l'envoi immédiat
+      const resendId = await this.emailService.sendVerificationEmail(
         user.email,
         verificationCode,
         user.firstName,
       );
-      if (emailSent) {
-        console.log(`✅ Email de vérification envoyé avec succès à ${user.email}`);
-      } else {
-        console.error(`❌ ÉCHEC de l'envoi de l'email de vérification à ${user.email} - Vérifiez les logs pour plus de détails`);
-      }
+      this.logger.log(`✅ Email de vérification envoyé avec succès à ${user.email} (Resend ID: ${resendId})`);
     } catch (error) {
-      // Log l'erreur mais ne bloque pas l'inscription
-      console.error('❌ Erreur lors de l\'envoi de l\'email de vérification:', error);
-      console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
+      // Log l'erreur mais ne bloque pas l'inscription - l'utilisateur peut redemander un code
+      this.logger.error(`❌ Erreur lors de l'envoi de l'email de vérification à ${user.email}:`, error);
+      this.logger.error(`❌ Stack trace:`, error instanceof Error ? error.stack : 'N/A');
+      // Ne pas bloquer l'inscription - l'utilisateur peut utiliser resendVerificationEmail
     }
 
     // Ne pas générer de token JWT si l'email n'est pas vérifié
@@ -205,17 +203,22 @@ export class AuthService {
         },
       });
 
-      // Envoyer l'email
+      // Envoyer l'email directement (sans queue) pour garantir l'envoi immédiat
       try {
-        await this.notificationsService.sendVerificationEmail(
+        // Utiliser emailService directement (comme pour waitlist) pour éviter la queue et garantir l'envoi immédiat
+        const resendId = await this.emailService.sendVerificationEmail(
           user.email,
           verificationCode,
           user.firstName,
         );
-        this.logger.log(`✅ Nouveau code de vérification envoyé à ${user.email} lors de la tentative de connexion`);
+        this.logger.log(`✅ Nouveau code de vérification envoyé à ${user.email} lors de la tentative de connexion (Resend ID: ${resendId})`);
       } catch (error) {
         this.logger.error(`❌ Erreur lors de l'envoi du code de vérification à ${user.email}:`, error);
-        // Continuer quand même - le code est enregistré dans la DB
+        this.logger.error(`❌ Stack trace:`, error instanceof Error ? error.stack : 'N/A');
+        // Ne pas continuer - on doit absolument envoyer l'email pour que l'utilisateur puisse se connecter
+        throw new InternalServerErrorException(
+          `Impossible d'envoyer l'email de vérification. Veuillez réessayer ou contacter le support.`,
+        );
       }
 
       // Retourner une réponse spéciale indiquant qu'un nouveau code a été envoyé
@@ -464,13 +467,15 @@ export class AuthService {
       },
     });
 
-    // Envoyer l'email
+    // Envoyer l'email directement (sans queue) pour garantir l'envoi immédiat
     try {
-      await this.notificationsService.sendVerificationEmail(
+      // Utiliser emailService directement (comme pour waitlist) pour éviter la queue et garantir l'envoi immédiat
+      const resendId = await this.emailService.sendVerificationEmail(
         user.email,
         verificationCode,
         user.firstName,
       );
+      this.logger.log(`✅ Email de vérification renvoyé à ${user.email} (Resend ID: ${resendId})`);
       return {
         message: 'Un nouvel email de vérification a été envoyé',
       };
