@@ -34,6 +34,9 @@ function UsersPageContent() {
   const [invitations, setInvitations] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  
   // Rôles que l'utilisateur peut inviter selon les permissions (mémorisé)
   const availableRoles = useMemo(() => {
     if (user?.role === 'ADMIN') {
@@ -79,8 +82,6 @@ function UsersPageContent() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<'users' | 'invitations'>('users');
 
   // Fonction pour traduire le statut de l'utilisateur
