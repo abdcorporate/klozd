@@ -155,7 +155,9 @@ export default function OrganizationsPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Organisations</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Organisations <span className="text-sm font-normal text-gray-500">(VUE SUPER ADMIN)</span>
+            </h1>
             <p className="text-gray-600 mt-2">
               Gérez toutes les organisations de la plateforme
             </p>
@@ -202,19 +204,19 @@ export default function OrganizationsPage() {
                     {format(new Date(org.createdAt), 'd MMM yyyy', { locale: fr })}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-1.5">
                       <button
                         onClick={() => handleEdit(org)}
-                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md"
+                        className="group relative p-2.5 text-gray-500 hover:text-gray-900 border border-transparent hover:border-gray-300 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-lg hover:bg-white/80 backdrop-blur-sm"
                         title="Modifier"
                       >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           fill="none"
                           viewBox="0 0 24 24"
-                          strokeWidth="2"
+                          strokeWidth="1.5"
                           stroke="currentColor"
-                          className="w-5 h-5"
+                          className="w-4.5 h-4.5 transition-transform duration-300 group-hover:rotate-[-5deg]"
                         >
                           <path
                             strokeLinecap="round"
@@ -222,16 +224,17 @@ export default function OrganizationsPage() {
                             d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
                           />
                         </svg>
+                        <span className="absolute inset-0 rounded-lg bg-gradient-to-r from-gray-100/0 via-gray-100/50 to-gray-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10"></span>
                       </button>
                       <button
                         onClick={() => setShowDeleteConfirm(org.id)}
                         disabled={deletingOrgId === org.id || org._count.users > 0}
-                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="group relative p-2.5 text-gray-500 hover:text-gray-900 border border-transparent hover:border-gray-300 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 hover:shadow-lg hover:bg-white/80 backdrop-blur-sm disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
                         title={deletingOrgId === org.id ? 'Suppression...' : org._count.users > 0 ? 'Impossible de supprimer (utilisateurs présents)' : 'Supprimer'}
                       >
                         {deletingOrgId === org.id ? (
                           <svg
-                            className="animate-spin h-5 w-5"
+                            className="animate-spin h-4.5 w-4.5"
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
@@ -255,9 +258,9 @@ export default function OrganizationsPage() {
                             xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
-                            strokeWidth="2"
+                            strokeWidth="1.5"
                             stroke="currentColor"
-                            className="w-5 h-5"
+                            className="w-4.5 h-4.5 transition-transform duration-300 group-hover:scale-110"
                           >
                             <path
                               strokeLinecap="round"
@@ -266,6 +269,7 @@ export default function OrganizationsPage() {
                             />
                           </svg>
                         )}
+                        <span className="absolute inset-0 rounded-lg bg-gradient-to-r from-gray-100/0 via-gray-100/50 to-gray-100/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10"></span>
                       </button>
                     </div>
                   </td>
