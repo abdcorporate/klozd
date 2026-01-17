@@ -9,7 +9,7 @@ interface AuthState {
   _hasHydrated: boolean;
   setHasHydrated: (state: boolean) => void;
   setToken: (token: string | null) => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<any>;
   register: (data: {
     email: string;
     password: string;
@@ -39,6 +39,12 @@ export const useAuthStore = create<AuthState>()(
           console.log('Appel API login...');
           const response = await authApi.login({ email, password });
           console.log('Réponse API:', response.data);
+          
+          // Si c'est un cas de vérification d'email requise, retourner la réponse spéciale
+          if (response.data?.requiresVerification) {
+            return response;
+          }
+          
           const { accessToken, user } = response.data;
           
           if (typeof window !== 'undefined') {

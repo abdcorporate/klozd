@@ -191,8 +191,36 @@ export class AuthService {
     // Vérifier si l'email est vérifié
     if (!user.emailVerified) {
       // Don't record failure for unverified email (different error)
+      // Générer un nouveau code de vérification et l'envoyer
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const verificationCodeExpiresAt = new Date();
+      verificationCodeExpiresAt.setMinutes(verificationCodeExpiresAt.getMinutes() + 15);
+
+      // Mettre à jour le code
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationCode,
+          verificationCodeExpiresAt,
+        },
+      });
+
+      // Envoyer l'email
+      try {
+        await this.notificationsService.sendVerificationEmail(
+          user.email,
+          verificationCode,
+          user.firstName,
+        );
+        this.logger.log(`✅ Nouveau code de vérification envoyé à ${user.email} lors de la tentative de connexion`);
+      } catch (error) {
+        this.logger.error(`❌ Erreur lors de l'envoi du code de vérification à ${user.email}:`, error);
+        // Continuer quand même - le code est enregistré dans la DB
+      }
+
+      // Retourner une réponse spéciale indiquant qu'un nouveau code a été envoyé
       throw new UnauthorizedException(
-        'Votre email n\'a pas été vérifié. Veuillez vérifier votre boîte de réception et cliquer sur le lien de vérification. Si vous n\'avez pas reçu l\'email, vous pouvez en demander un nouveau.',
+        'EMAIL_NOT_VERIFIED',
       );
     }
 

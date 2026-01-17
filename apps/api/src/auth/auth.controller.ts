@@ -81,8 +81,18 @@ export class AuthController {
         accessToken: result.accessToken,
         user: result.user,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erreur de connexion:', error.message);
+      
+      // Si l'email n'est pas vérifié, retourner une réponse spéciale avec requiresVerification
+      if (error.message === 'EMAIL_NOT_VERIFIED') {
+        return {
+          requiresVerification: true,
+          email: loginDto.email,
+          message: 'Un nouveau code de vérification a été envoyé à votre adresse email. Veuillez entrer le code à 6 chiffres pour activer votre compte.',
+        };
+      }
+      
       throw error;
     }
   }

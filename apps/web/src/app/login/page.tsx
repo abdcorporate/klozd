@@ -66,7 +66,14 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       setError(null);
-      await login(data.email, data.password);
+      const response = await login(data.email, data.password);
+      
+      // Si l'email n'est pas vérifié, rediriger vers la page de vérification
+      if (response?.data?.requiresVerification) {
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+        return;
+      }
+      
       router.push('/dashboard');
     } catch (err: any) {
       let errorMessage = 'Erreur de connexion';
