@@ -529,16 +529,7 @@ function UsersPageContent() {
                             setEditingUser(userItem);
                             setShowEditModal(true);
                           }}
-                          className="p-2 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md"
-                          style={{ color: '#dd7200' }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.color = '#b85f00';
-                            e.currentTarget.style.backgroundColor = '#fef3e7';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.color = '#dd7200';
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
+                          className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md"
                           title="Modifier"
                         >
                           <svg
@@ -560,18 +551,7 @@ function UsersPageContent() {
                           <button
                             onClick={() => setShowDeleteConfirm(userItem.id)}
                             disabled={deletingUserId === userItem.id}
-                            className="p-2 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                            style={{ color: '#dd7200' }}
-                            onMouseEnter={(e) => {
-                              if (!e.currentTarget.disabled) {
-                                e.currentTarget.style.color = '#b85f00';
-                                e.currentTarget.style.backgroundColor = '#fef3e7';
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.color = '#dd7200';
-                              e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                             title={deletingUserId === userItem.id ? 'Suppression...' : 'Supprimer'}
                           >
                             {deletingUserId === userItem.id ? (

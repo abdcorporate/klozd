@@ -191,9 +191,9 @@ export default function OrganizationsPage() {
                     <div className="text-sm text-gray-600">{org.slug}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
+                    <div className="text-sm text-gray-600">
                       {getPlanLabel(org.settings?.subscriptionPlan || 'solo')}
-                    </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-600">{org._count.users}</div>
@@ -205,7 +205,7 @@ export default function OrganizationsPage() {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(org)}
-                        className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md"
+                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md"
                         title="Modifier"
                       >
                         <svg
@@ -226,7 +226,7 @@ export default function OrganizationsPage() {
                       <button
                         onClick={() => setShowDeleteConfirm(org.id)}
                         disabled={deletingOrgId === org.id || org._count.users > 0}
-                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all hover:scale-110 active:scale-95 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                         title={deletingOrgId === org.id ? 'Suppression...' : org._count.users > 0 ? 'Impossible de supprimer (utilisateurs présents)' : 'Supprimer'}
                       >
                         {deletingOrgId === org.id ? (
