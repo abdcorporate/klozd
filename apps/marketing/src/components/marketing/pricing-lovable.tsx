@@ -64,12 +64,14 @@ export function PricingLovable() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {pricing.plans[language].map((plan, index) => (
+            {pricing.plans[language].map((plan, index) => {
+              const isPopular = 'isPopular' in plan && plan.isPopular === true;
+              return (
               <div
                 key={index}
-                className={plan.isPopular ? "card-pricing-popular" : "card-pricing"}
+                className={isPopular ? "card-pricing-popular" : "card-pricing"}
               >
-                {plan.isPopular && (
+                {isPopular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-klozd-yellow text-klozd-black px-4 py-1 rounded-full text-sm font-semibold">
                     POPULAR
                   </div>
@@ -107,13 +109,14 @@ export function PricingLovable() {
                 <Button
                   onClick={handleWaitlistClick}
                   className={`w-full ${
-                    plan.isPopular ? "btn-primary" : "btn-secondary"
+                    isPopular ? "btn-primary" : "btn-secondary"
                   }`}
                 >
                   {pricing.cta[language]}
                 </Button>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="text-center mt-8">
