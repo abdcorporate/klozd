@@ -4,6 +4,7 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  HttpException,
   Req,
   Logger,
   BadRequestException,
@@ -81,6 +82,8 @@ export class WaitlistController {
         firstName: createDto.firstName,
         role: createDto.role,
         leadVolumeRange: createDto.leadVolumeRange,
+        teamSize: createDto.teamSize,
+        revenue: createDto.revenue,
         utmSource: createDto.utmSource,
         utmMedium: createDto.utmMedium,
         utmCampaign: createDto.utmCampaign,
@@ -117,6 +120,17 @@ export class WaitlistController {
         alreadyJoined: false,
       };
     } catch (error: any) {
+      // Logger toutes les erreurs pour le debugging
+      this.logger.error(
+        `Error creating waitlist entry: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+        {
+          email: createDto.email,
+          error: error?.message,
+          stack: error?.stack,
+        },
+      );
+
       // Logger les erreurs de validation de sécurité
       if (error instanceof BadRequestException) {
         this.securityService.logBlockedAttempt(
@@ -126,8 +140,14 @@ export class WaitlistController {
           undefined,
           { endpoint: 'POST /public/waitlist', email: createDto.email },
         );
+        throw error;
       }
-      throw error;
+
+      // Pour les autres erreurs, retourner une erreur 500 avec un message générique
+      throw new HttpException(
+        'Erreur lors de l\'inscription à la waitlist. Veuillez réessayer plus tard.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

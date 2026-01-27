@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLanguage } from "./language-provider";
 import { translations } from "@/lib/translations";
 import { Button } from "@/components/ui/button";
+import { useWaitlist } from "./waitlist-context";
 
 const formatNumber = (num: number) => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
@@ -11,11 +12,12 @@ const formatNumber = (num: number) => {
 
 export function PricingLovable() {
   const { language } = useLanguage();
+  const { openWaitlist } = useWaitlist();
   const [isYearly, setIsYearly] = useState(false);
   const pricing = translations.pricing;
 
   const handleWaitlistClick = () => {
-    window.location.href = "#waitlist";
+    openWaitlist();
   };
 
   return (

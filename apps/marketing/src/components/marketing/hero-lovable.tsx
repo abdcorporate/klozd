@@ -5,13 +5,11 @@ import { useLanguage } from "./language-provider";
 import { translations } from "@/lib/translations";
 import { Button } from "@/components/ui/button";
 import { MockupImage } from "./mockup-image";
+import { useWaitlist } from "./waitlist-context";
 
-interface HeroLovableProps {
-  onOpenWaitlist?: () => void;
-}
-
-export function HeroLovable({ onOpenWaitlist }: HeroLovableProps = {}) {
+export function HeroLovable() {
   const { language } = useLanguage();
+  const { openWaitlist } = useWaitlist();
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const hero = translations.hero;
 
@@ -25,11 +23,7 @@ export function HeroLovable({ onOpenWaitlist }: HeroLovableProps = {}) {
   }, [rotatingWords.length]);
 
   const handleWaitlistClick = () => {
-    if (onOpenWaitlist) {
-      onOpenWaitlist();
-    } else {
-      window.location.href = "#waitlist";
-    }
+    openWaitlist();
   };
 
   const handleCalculatorClick = () => {

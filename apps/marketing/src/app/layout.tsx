@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import Link from "next/link";
+import { WaitlistProvider } from "@/components/marketing/waitlist-context";
+import { WaitlistModal } from "@/components/marketing/waitlist-modal";
+import { WaitlistTrigger } from "@/components/marketing/waitlist-trigger";
+import { LanguageProvider } from "@/components/marketing/language-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -63,7 +67,13 @@ export default function RootLayout({
         className={`${inter.variable} font-sans antialiased`}
         style={{ fontFamily: "Inter, system-ui, sans-serif" }}
       >
-        {children}
+        <LanguageProvider>
+          <WaitlistProvider>
+            {children}
+            <WaitlistTrigger />
+            <WaitlistModal />
+          </WaitlistProvider>
+        </LanguageProvider>
         {process.env.NODE_ENV === 'production' && (
           <Script
             defer

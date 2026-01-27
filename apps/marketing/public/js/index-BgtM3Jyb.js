@@ -25074,30 +25074,6 @@ const Vg = () => {
                       })]
                   })
               })]
-          }), h.jsxs(_.div, {
-              initial: {
-                  opacity: 0,
-                  y: 30
-              },
-              animate: {
-                  opacity: 1,
-                  y: 0
-              },
-              transition: {
-                  duration: .6,
-                  delay: 1.2
-              },
-              className: "mt-16 lg:mt-24 text-center",
-              children: [h.jsx("p", {
-                  className: "text-sm text-klozd-gray-400 mb-6",
-                  children: t.hero.trustedBy[e]
-              }), h.jsx("div", {
-                  className: "flex flex-wrap justify-center items-center gap-8 md:gap-12 opacity-50 grayscale",
-                  children: ["CoachPro", "AgenceScale", "InfoBusiness", "SalesTeam", "CloseMore"].map(s => h.jsx("span", {
-                      className: "text-lg font-semibold text-klozd-gray-600",
-                      children: s
-                  }, s))
-              })]
           })]
       })
   })
@@ -26196,43 +26172,6 @@ const LD = () => {
                       })]
                   })]
               }, s.name))
-          }), h.jsxs(_.div, {
-              initial: {
-                  opacity: 0,
-                  y: 20
-              },
-              animate: t ? {
-                  opacity: 1,
-                  y: 0
-              } : {},
-              transition: {
-                  duration: .5,
-                  delay: .6
-              },
-              className: "text-center",
-              children: [h.jsx("p", {
-                  className: "text-sm text-klozd-gray-400 mb-6",
-                  children: r.testimonials.trustedBy[n]
-              }), h.jsx("div", {
-                  className: "flex flex-wrap justify-center items-center gap-8 md:gap-12",
-                  children: o.map( (s, a) => h.jsx(_.span, {
-                      initial: {
-                          opacity: 0
-                      },
-                      animate: t ? {
-                          opacity: .5
-                      } : {},
-                      transition: {
-                          duration: .3,
-                          delay: .7 + a * .05
-                      },
-                      whileHover: {
-                          opacity: 1
-                      },
-                      className: "text-lg font-semibold text-klozd-gray-600 grayscale hover:grayscale-0 transition-all cursor-pointer",
-                      children: s
-                  }, s))
-              })]
           })]
       })
   })

@@ -5,13 +5,11 @@ import Link from "next/link";
 import { useLanguage } from "./language-provider";
 import { translations, t } from "@/lib/translations";
 import { Button } from "@/components/ui/button";
+import { useWaitlist } from "./waitlist-context";
 
-interface HeaderLovableProps {
-  onOpenWaitlist?: () => void;
-}
-
-export function HeaderLovable({ onOpenWaitlist }: HeaderLovableProps = {}) {
+export function HeaderLovable() {
   const { language, setLanguage } = useLanguage();
+  const { openWaitlist } = useWaitlist();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -24,12 +22,8 @@ export function HeaderLovable({ onOpenWaitlist }: HeaderLovableProps = {}) {
   }, []);
 
   const handleWaitlistClick = () => {
-    if (onOpenWaitlist) {
-      onOpenWaitlist();
-      setIsMobileMenuOpen(false);
-    } else {
-      window.location.href = "#waitlist";
-    }
+    openWaitlist();
+    setIsMobileMenuOpen(false);
   };
 
   const nav = translations.nav;

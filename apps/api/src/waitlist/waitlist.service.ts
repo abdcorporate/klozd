@@ -88,11 +88,33 @@ export class WaitlistService {
 
     // 5. Créer une nouvelle entrée
     // Note: Temporary cast until Prisma client is regenerated
-    const entry = await (this.prisma as any).waitlistEntry.create({
-      data: sanitizedData,
-    });
-
-    this.logger.log(`New waitlist entry created: ${entry.email} (${entry.id})`);
+    let entry;
+    try {
+      entry = await (this.prisma as any).waitlistEntry.create({
+        data: sanitizedData,
+      });
+      this.logger.log(`New waitlist entry created: ${entry.email} (${entry.id})`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to create waitlist entry: ${error?.message || 'Unknown error'}`,
+        error?.stack,
+        { email: normalizedEmail, sanitizedData },
+      );
+      // Si c'est une erreur de contrainte unique (email déjà existant), retourner l'existante
+      if (error?.code === 'P2002' && error?.meta?.target?.includes('email')) {
+        const existing = await (this.prisma as any).waitlistEntry.findUnique({
+          where: { email: normalizedEmail },
+        });
+        if (existing) {
+          return {
+            id: existing.id,
+            email: existing.email,
+            alreadyJoined: true,
+          };
+        }
+      }
+      throw error;
+    }
 
     // Envoyer un email de confirmation (optionnel, ne bloque pas l'inscription si échec)
     try {

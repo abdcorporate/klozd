@@ -3,13 +3,15 @@
 import { useLanguage } from "./language-provider";
 import { translations } from "@/lib/translations";
 import { Button } from "@/components/ui/button";
+import { useWaitlist } from "./waitlist-context";
 
 export function WaitlistSectionLovable() {
   const { language } = useLanguage();
+  const { openWaitlist } = useWaitlist();
   const finalCta = translations.finalCta;
 
   const handleWaitlistClick = () => {
-    window.location.href = "#waitlist";
+    openWaitlist();
   };
 
   return (
