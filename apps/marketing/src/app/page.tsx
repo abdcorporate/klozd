@@ -12,9 +12,6 @@ export default function Home() {
       <Script
         src="/assets/index-BgtM3Jyb.js"
         strategy="afterInteractive"
-        onError={(e) => {
-          console.error('Failed to load main bundle:', e);
-        }}
       />
     </>
   );

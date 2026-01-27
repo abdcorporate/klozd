@@ -1,5 +1,0 @@
-{
-  "buildCommand": "cd ../.. && pnpm --filter marketing run build",
-  "outputDirectory": ".next",
-  "installCommand": "cd ../.. && pnpm install"
-}

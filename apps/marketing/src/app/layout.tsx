@@ -70,9 +70,6 @@ export default function RootLayout({
             src="/js/~flock.js"
             data-proxy-url="https://kleed-flow.lovable.app/~api/analytics"
             strategy="afterInteractive"
-            onError={(e) => {
-              console.warn('Analytics script failed to load:', e);
-            }}
           />
         )}
       </body>
