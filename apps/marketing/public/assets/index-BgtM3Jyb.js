@@ -27459,7 +27459,7 @@ const uI = () => {
 , dI = () => {
   const {language: e, t} = $t()
     , [n] = x.useState(67)
-    , r = 100
+    , r = 500
     , i = n / r * 100
     , [o,s] = x.useState(!1);
   return h.jsxs("section", {

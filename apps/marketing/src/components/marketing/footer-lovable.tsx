@@ -37,16 +37,6 @@ export function FooterLovable() {
               </li>
             </ul>
           </div>
-          <div>
-            <h4 className="font-semibold mb-4">{footer.legal[language]}</h4>
-            <ul className="space-y-2 text-white/60">
-              <li>
-                <a href="/privacy" className="hover:text-white transition-colors">
-                  {footer.privacy[language]}
-                </a>
-              </li>
-            </ul>
-          </div>
         </div>
         <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-white/60 text-sm">
