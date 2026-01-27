@@ -14,6 +14,8 @@ interface WaitlistEntry {
   firstName: string | null;
   role: string | null;
   leadVolumeRange: string | null;
+  teamSize: string | null;
+  revenue: string | null;
   utmSource: string | null;
   utmMedium: string | null;
   utmCampaign: string | null;
@@ -110,6 +112,30 @@ export default function AdminWaitlistPage() {
   const getLeadVolumeLabel = (range: string | null) => {
     if (!range) return '-';
     return range.replace('+', '+ leads/mois');
+  };
+
+  const getTeamSizeLabel = (size: string | null) => {
+    if (!size) return '-';
+    const sizeMap: Record<string, string> = {
+      '1': '1 personne',
+      '2-5': '2 - 5 personnes',
+      '6-10': '6 - 10 personnes',
+      '11-20': '11 - 20 personnes',
+      '20+': '20+ personnes',
+    };
+    return sizeMap[size] || size;
+  };
+
+  const getRevenueLabel = (revenue: string | null) => {
+    if (!revenue) return '-';
+    const revenueMap: Record<string, string> = {
+      '0-50k': '0 - 50k€',
+      '50k-200k': '50k - 200k€',
+      '200k-500k': '200k - 500k€',
+      '500k-1M': '500k - 1M€',
+      '1M+': '1M€+',
+    };
+    return revenueMap[revenue] || revenue;
   };
 
   if (!isAuthenticated || !user) {
@@ -221,6 +247,12 @@ export default function AdminWaitlistPage() {
                     Volume leads
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Équipe
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    CA mensuel
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date d'inscription
                   </th>
                 </tr>
@@ -228,7 +260,7 @@ export default function AdminWaitlistPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {entries.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       {search ? 'Aucun résultat trouvé' : 'Aucune inscription pour le moment'}
                     </td>
                   </tr>
@@ -249,6 +281,16 @@ export default function AdminWaitlistPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-600">
                           {getLeadVolumeLabel(entry.leadVolumeRange)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">
+                          {getTeamSizeLabel(entry.teamSize)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">
+                          {getRevenueLabel(entry.revenue)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

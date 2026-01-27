@@ -31,6 +31,16 @@ export class CreateWaitlistEntryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(50)
+  teamSize?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  revenue?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   utmSource?: string;
 

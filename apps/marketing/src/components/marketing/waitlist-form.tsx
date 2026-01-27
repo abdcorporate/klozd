@@ -69,6 +69,18 @@ const waitlistSchema = z.object({
     })
     .optional()
     .or(z.literal('')),
+  teamSize: z
+    .enum(['1', '2-5', '6-10', '11-20', '20+'], {
+      message: "Taille d'équipe invalide",
+    })
+    .optional()
+    .or(z.literal('')),
+  revenue: z
+    .enum(['0-50k', '50k-200k', '200k-500k', '500k-1M', '1M+'], {
+      message: "CA invalide",
+    })
+    .optional()
+    .or(z.literal('')),
   // Champs de sécurité
   honeypot: z.string().max(0, "Champ de sécurité invalide").optional().or(z.literal('')),
   formRenderedAt: z.string().optional(),
@@ -78,7 +90,11 @@ type WaitlistFormData = z.infer<typeof waitlistSchema>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-export function WaitlistForm() {
+interface WaitlistFormProps {
+  onSuccess?: () => void;
+}
+
+export function WaitlistForm({ onSuccess }: WaitlistFormProps = {}) {
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -112,6 +128,8 @@ export function WaitlistForm() {
           firstName: data.firstName,
           role: data.role,
           leadVolumeRange: data.leadVolumeRange,
+          teamSize: data.teamSize,
+          revenue: data.revenue,
           utmSource,
           utmMedium,
           utmCampaign,
@@ -137,6 +155,9 @@ export function WaitlistForm() {
       }
 
       setIsSuccess(true);
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (err: any) {
       setError(err.message || "Une erreur est survenue. Veuillez réessayer.");
     } finally {
@@ -144,7 +165,8 @@ export function WaitlistForm() {
     }
   };
 
-  if (isSuccess) {
+  // Don't show success state in modal mode (handled by parent)
+  if (isSuccess && !onSuccess) {
     return (
       <Card className="text-center py-12 md:py-16 border-2 border-primary/50 shadow-2xl bg-gradient-to-br from-card to-card/95 animate-scale-in">
         <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center animate-scale-in delay-200">
@@ -168,7 +190,7 @@ export function WaitlistForm() {
   }
 
   return (
-    <Card className="border-2 border-border/50 shadow-xl bg-gradient-to-br from-card to-card/95 backdrop-blur-sm p-8 md:p-10">
+    <div className="space-y-6">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Honeypot field (invisible) */}
         <input
@@ -272,6 +294,39 @@ export function WaitlistForm() {
 
           <div>
             <label
+              htmlFor="teamSize"
+              className="block text-sm font-semibold text-foreground mb-2"
+            >
+              Équipe
+            </label>
+            <select
+              {...register("teamSize")}
+              id="teamSize"
+              className="w-full px-4 py-3.5 border-2 border-border rounded-xl bg-background focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200 text-foreground appearance-none cursor-pointer"
+            >
+              <option value="">Sélectionner une taille</option>
+              <option value="1">1 personne</option>
+              <option value="2-5">2 - 5 personnes</option>
+              <option value="6-10">6 - 10 personnes</option>
+              <option value="11-20">11 - 20 personnes</option>
+              <option value="20+">20+ personnes</option>
+            </select>
+            {errors.teamSize && (
+              <p className="mt-2 text-sm text-destructive flex items-center gap-1" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                {errors.teamSize.message}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label
               htmlFor="leadVolumeRange"
               className="block text-sm font-semibold text-foreground mb-2"
             >
@@ -288,6 +343,37 @@ export function WaitlistForm() {
               <option value="200-500">200 - 500 leads/mois</option>
               <option value="500+">500+ leads/mois</option>
             </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="revenue"
+              className="block text-sm font-semibold text-foreground mb-2"
+            >
+              Chiffre d'affaires mensuel
+            </label>
+            <select
+              {...register("revenue")}
+              id="revenue"
+              className="w-full px-4 py-3.5 border-2 border-border rounded-xl bg-background focus:ring-2 focus:ring-primary focus:border-primary transition-all duration-200 text-foreground appearance-none cursor-pointer"
+            >
+              <option value="">Sélectionner un CA</option>
+              <option value="0-50k">0 - 50k€</option>
+              <option value="50k-200k">50k - 200k€</option>
+              <option value="200k-500k">200k - 500k€</option>
+              <option value="500k-1M">500k - 1M€</option>
+              <option value="1M+">1M€+</option>
+            </select>
+            {errors.revenue && (
+              <p className="mt-2 text-sm text-destructive flex items-center gap-1" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                {errors.revenue.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -330,6 +416,6 @@ export function WaitlistForm() {
           )}
         </Button>
       </form>
-    </Card>
+    </div>
   );
 }

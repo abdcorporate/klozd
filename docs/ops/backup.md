@@ -379,5 +379,5 @@ En cas de problème avec les backups ou besoin de restauration :
 
 ---
 
-**Dernière mise à jour** : 2025-01-27  
-**Prochaine révision** : 2025-04-27
+**Dernière mise à jour** : 2026-01-27  
+**Prochaine révision** : 2026-04-27

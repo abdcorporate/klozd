@@ -10,6 +10,8 @@ export interface CreateWaitlistEntryDto {
   firstName?: string;
   role?: string;
   leadVolumeRange?: string;
+  teamSize?: string;
+  revenue?: string;
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
@@ -42,6 +44,8 @@ export class WaitlistService {
       firstName: dto.firstName,
       role: dto.role,
       leadVolumeRange: dto.leadVolumeRange,
+      teamSize: dto.teamSize,
+      revenue: dto.revenue,
       utmSource: dto.utmSource,
       utmMedium: dto.utmMedium,
       utmCampaign: dto.utmCampaign,
@@ -73,6 +77,8 @@ export class WaitlistService {
       firstName: this.securityService.sanitizeInput(dto.firstName, 100),
       role: this.securityService.sanitizeInput(dto.role, 50)?.toLowerCase(),
       leadVolumeRange: this.securityService.sanitizeInput(dto.leadVolumeRange, 50),
+      teamSize: this.securityService.sanitizeInput(dto.teamSize, 50),
+      revenue: this.securityService.sanitizeInput(dto.revenue, 50),
       utmSource: this.securityService.sanitizeInput(dto.utmSource, 100),
       utmMedium: this.securityService.sanitizeInput(dto.utmMedium, 100),
       utmCampaign: this.securityService.sanitizeInput(dto.utmCampaign, 100),

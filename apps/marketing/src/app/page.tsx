@@ -1,27 +1,21 @@
-import { Header } from "@/components/marketing/header";
-import { HeroNew } from "@/components/marketing/hero-new";
-import { ReplaceTools } from "@/components/marketing/replace-tools";
-import { HowItWorksNew } from "@/components/marketing/how-it-works-new";
-import { FeaturesNew } from "@/components/marketing/features-new";
-import { ForWho } from "@/components/marketing/for-who";
-import { Pricing } from "@/components/marketing/pricing";
-import { FAQNew } from "@/components/marketing/faq-new";
-import { FinalCTANew } from "@/components/marketing/final-cta-new";
+"use client";
+
+import { useRef } from "react";
+import Script from "next/script";
 
 export default function Home() {
+  const rootRef = useRef<HTMLDivElement>(null);
+
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main>
-        <HeroNew />
-        <ReplaceTools />
-        <HowItWorksNew />
-        <FeaturesNew />
-        <ForWho />
-        <Pricing />
-        <FAQNew />
-        <FinalCTANew />
-      </main>
-    </div>
+    <>
+      <div id="root" ref={rootRef} style={{ paddingTop: '80px' }}></div>
+      <Script
+        src="/assets/index-BgtM3Jyb.js"
+        strategy="afterInteractive"
+        onError={(e) => {
+          console.error('Failed to load main bundle:', e);
+        }}
+      />
+    </>
   );
 }

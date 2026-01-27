@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { FooterNew } from "@/components/marketing/footer-new";
-import "./globals.css";
+import Script from "next/script";
+import Link from "next/link";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -10,31 +10,31 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "KLOZD - Le CRM tout-en-un",
+  title: "KLOZD - Close more. Stress less. | Smart Sales Management",
   description:
-    "KLOZD est le CRM intelligent qui remplace 6+ outils. Trackez vos leads, closez vos deals et pilotez votre croissance avec une seule plateforme.",
+    "KLOZD centralise tes leads, automatise tes relances, et transforme ton chaos commercial en machine à signer. Rejoins les 500 premiers utilisateurs.",
   keywords: ["CRM", "leads", "ventes", "pipeline", "automatisation", "IA", "intelligence artificielle", "prospection"],
   authors: [{ name: "KLOZD" }],
   openGraph: {
-    title: "KLOZD - Le CRM tout-en-un",
+    title: "KLOZD - Close more. Stress less.",
     description:
-      "Un seul outil pour tracker tous tes leads, closer tous tes deals et piloter ta croissance.",
+      "L'outil de gestion commerciale intelligent pour entrepreneurs.",
     type: "website",
     locale: "fr_FR",
     siteName: "KLOZD",
     images: [
       {
-        url: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/58e650af-b1d4-45f0-87c9-7e263633a2e5/id-preview-fb2777cc--08021a3c-94aa-4bd7-9b5a-bb93f24bce7d.lovable.app-1768395572662.png",
+        url: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1ee46ac7-1163-4a5d-9fde-4fb8985616d5/id-preview-ade0e719--d2afd57d-4666-4f70-95b5-9aaf91ec3900.lovable.app-1768837653298.png",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     site: "@klozd",
-    title: "KLOZD - Le CRM tout-en-un",
-    description: "Un seul outil pour tracker tous tes leads, closer tous tes deals et piloter ta croissance.",
+    title: "KLOZD - Close more. Stress less.",
+    description: "L'outil de gestion commerciale intelligent pour entrepreneurs.",
     images: [
-      "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/58e650af-b1d4-45f0-87c9-7e263633a2e5/id-preview-fb2777cc--08021a3c-94aa-4bd7-9b5a-bb93f24bce7d.lovable.app-1768395572662.png",
+      "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/1ee46ac7-1163-4a5d-9fde-4fb8985616d5/id-preview-ade0e719--d2afd57d-4666-4f70-95b5-9aaf91ec3900.lovable.app-1768837653298.png",
     ],
   },
 };
@@ -46,12 +46,35 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      <head>
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="stylesheet" crossOrigin="" href="/assets/index-D3CRx_8L.css" />
+        <style dangerouslySetInnerHTML={{__html: `
+          @font-face {
+            font-family: 'CameraPlainVariable';
+            src: url('/fonts/CameraPlainVariable.woff2') format('woff2');
+            font-weight: 100 900;
+            font-style: normal;
+            font-display: swap;
+          }
+        `}} />
+      </head>
       <body
         className={`${inter.variable} font-sans antialiased`}
         style={{ fontFamily: "Inter, system-ui, sans-serif" }}
       >
         {children}
-        <FooterNew />
+        {process.env.NODE_ENV === 'production' && (
+          <Script
+            defer
+            src="/js/~flock.js"
+            data-proxy-url="https://kleed-flow.lovable.app/~api/analytics"
+            strategy="afterInteractive"
+            onError={(e) => {
+              console.warn('Analytics script failed to load:', e);
+            }}
+          />
+        )}
       </body>
     </html>
   );

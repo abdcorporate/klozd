@@ -55,6 +55,15 @@ const config: Config = {
           "orange-600": "#ea580c",
           "orange-700": "#c2410c",
         },
+        "klozd-black": "hsl(var(--klozd-black))",
+        "klozd-gray": {
+          900: "hsl(var(--klozd-gray-900))",
+          600: "hsl(var(--klozd-gray-600))",
+          400: "hsl(var(--klozd-gray-400))",
+          100: "hsl(var(--klozd-gray-100))",
+        },
+        "klozd-yellow": "hsl(var(--klozd-yellow))",
+        "klozd-white": "hsl(var(--klozd-white))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -69,6 +78,7 @@ const config: Config = {
         float: "float 3s ease-in-out infinite",
         "float-delayed": "float 3s ease-in-out infinite",
         "gradient-shift": "gradient-shift 8s ease infinite",
+        shimmer: "shimmer 2s linear infinite",
       },
       keyframes: {
         "pulse-slow": {
@@ -82,6 +92,10 @@ const config: Config = {
         "gradient-shift": {
           "0%, 100%": { backgroundPosition: "0% 50%" },
           "50%": { backgroundPosition: "100% 50%" },
+        },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
         },
       },
     },

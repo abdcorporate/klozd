@@ -234,6 +234,6 @@ Un middleware Prisma aurait été plus "magique" mais :
 
 ---
 
-**Date** : 2025-01-27  
+**Date** : 2026-01-27  
 **Auteur** : Audit de sécurité multi-tenant  
 **Version** : 1.0.0

@@ -937,6 +937,8 @@ model WaitlistEntry {
   firstName        String?
   role             String?  // Role de l'utilisateur (ex: "infopreneur", "closer", etc.)
   leadVolumeRange  String?  // Volume de leads (ex: "0-50", "50-200", "200+")
+  teamSize         String?  // Taille d'équipe (ex: "1", "2-5", "6-10", "11-20", "20+")
+  revenue          String?  // Chiffre d'affaires mensuel (ex: "0-50k", "50k-200k", "200k-500k", "500k-1M", "1M+")
   utmSource        String?  // UTM source
   utmMedium        String?  // UTM medium
   utmCampaign      String?  // UTM campaign

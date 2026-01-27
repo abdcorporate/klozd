@@ -271,5 +271,5 @@ Toutes les fonctionnalités sont configurables via variables d'environnement :
 
 ---
 
-**Date** : 2025-01-27  
+**Date** : 2026-01-27  
 **Version** : 1.0.0

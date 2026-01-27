@@ -1,6 +1,6 @@
 # 📊 RÉSUMÉ TECHNIQUE TOTAL - KLOZD SaaS
 
-**Date de mise à jour** : Janvier 2025  
+**Date de mise à jour** : Janvier 2026  
 **Version** : 1.0.0
 
 ---

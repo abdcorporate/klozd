@@ -90,7 +90,7 @@
 
 ## 🔄 Migration appliquée
 
-- ✅ Migration `20251222203011_add_teams_and_roles` créée et appliquée
+- ✅ Migration `20261222203011_add_teams_and_roles` créée et appliquée
 - ✅ Prisma Client régénéré
 
 ## 🚧 À faire (prochaines étapes)

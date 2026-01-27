@@ -3,66 +3,67 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 8%;
+    --foreground: 0 0% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 0 0% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
-    --primary: 48 100% 50%;
-    --primary-foreground: 0 0% 8%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 48 100% 95%;
-    --accent-foreground: 48 100% 35%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 48 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 9% 97%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 220 9% 97%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 48 100% 60%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
-    --ring: 48 100% 50%;
+    --border: 220 9% 91%;
+    --input: 220 9% 91%;
+    --ring: 48 100% 60%;
     --radius: .75rem;
-    --klozd-yellow: 48 100% 50%;
-    --klozd-yellow-dark: 48 100% 45%;
-    --klozd-yellow-light: 48 100% 95%;
-    --klozd-dark: 0 0% 8%;
-    --klozd-black: 0 0% 0%;
-    --klozd-gray: 0 0% 45%;
-    --klozd-light-gray: 0 0% 96%;
+    --klozd-black: 0 0% 4%;
+    --klozd-gray-900: 0 0% 10%;
+    --klozd-gray-600: 0 0% 40%;
+    --klozd-gray-400: 0 0% 60%;
+    --klozd-gray-100: 220 9% 98%;
     --klozd-white: 0 0% 100%;
-    --section-dark: 0 0% 8%;
+    --klozd-yellow: 48 100% 60%;
+    --klozd-yellow-light: 48 100% 92%;
+    --section-dark: 0 0% 4%;
     --section-light: 0 0% 100%;
-    --gradient-hero: linear-gradient(135deg, hsl(48 100% 50%) 0%, hsl(45 100% 55%) 100%);
-    --gradient-cta: linear-gradient(135deg, hsl(48 100% 50%) 0%, hsl(40 100% 45%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(48 100% 60%) 0%, hsl(45 100% 55%) 100%);
+    --gradient-cta: linear-gradient(135deg, hsl(48 100% 60%) 0%, hsl(40 100% 45%) 100%);
     --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 100%);
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, .05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, .07), 0 2px 4px -2px rgba(0, 0, 0, .05);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, .08), 0 4px 6px -4px rgba(0, 0, 0, .05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, .1), 0 8px 10px -6px rgba(0, 0, 0, .05);
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / .05);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / .07), 0 2px 4px -2px hsl(0 0% 0% / .05);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / .08), 0 4px 6px -4px hsl(0 0% 0% / .05);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / .1), 0 8px 10px -6px hsl(0 0% 0% / .05);
+    --shadow-hover: 0 10px 20px -5px hsl(0 0% 0% / .1);
     --shadow-card: 0 4px 6px rgba(0, 0, 0, .07);
     --shadow-card-hover: 0 20px 30px rgba(0, 0, 0, .12);
   }
   
   .dark {
-    --background: 0 0% 8%;
+    --background: 0 0% 4%;
     --foreground: 0 0% 98%;
-    --card: 0 0% 12%;
+    --card: 0 0% 4%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 12%;
+    --popover: 0 0% 4%;
     --popover-foreground: 0 0% 98%;
-    --primary: 48 100% 50%;
-    --primary-foreground: 0 0% 8%;
+    --primary: 48 100% 60%;
+    --primary-foreground: 0 0% 4%;
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 20%;
-    --muted-foreground: 0 0% 65%;
-    --accent: 48 100% 15%;
-    --accent-foreground: 48 100% 70%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 64%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 48 100% 50%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 48 100% 60%;
   }
   
   * {
@@ -107,6 +108,165 @@
       padding-left: 2rem;
       padding-right: 2rem;
     }
+  }
+  
+  .container-klozd {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 1200px;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+  
+  @media (min-width: 768px) {
+    .container-klozd {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+  
+  .headline-hero {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: hsl(var(--klozd-black));
+  }
+  
+  @media (min-width: 768px) {
+    .headline-hero {
+      font-size: 3rem;
+      line-height: 1;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .headline-hero {
+      font-size: 3.75rem;
+      line-height: 1;
+    }
+  }
+  
+  .headline-section {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: hsl(var(--klozd-black));
+  }
+  
+  @media (min-width: 768px) {
+    .headline-section {
+      font-size: 2.25rem;
+      line-height: 2.5rem;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .headline-section {
+      font-size: 3rem;
+      line-height: 1;
+    }
+  }
+  
+  .body-large {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    line-height: 1.625;
+    color: hsl(var(--klozd-gray-600));
+  }
+  
+  @media (min-width: 768px) {
+    .body-large {
+      font-size: 1.25rem;
+      line-height: 1.75rem;
+    }
+  }
+  
+  .body-normal {
+    font-size: 1rem;
+    line-height: 1.5rem;
+    line-height: 1.625;
+    color: hsl(var(--klozd-gray-600));
+  }
+  
+  @media (min-width: 768px) {
+    .body-normal {
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+    }
+  }
+  
+  .tag-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    background-color: hsl(var(--klozd-yellow) / .1);
+    padding: .25rem .75rem;
+    font-size: .875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    color: hsl(var(--klozd-yellow));
+  }
+  
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background-color: hsl(var(--klozd-black));
+    padding: .75rem 1.5rem;
+    font-weight: 500;
+    color: rgb(255 255 255);
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .3s;
+    animation-duration: .3s;
+  }
+  
+  .btn-primary:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-hover);
+  }
+  
+  @media (min-width: 768px) {
+    .btn-primary {
+      padding: 1rem 2rem;
+    }
+  }
+  
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border-width: 2px;
+    border-color: hsl(var(--klozd-black));
+    padding: .75rem 1.5rem;
+    font-weight: 500;
+    color: hsl(var(--klozd-black));
+    transition-property: all;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .3s;
+    animation-duration: .3s;
+  }
+  
+  .btn-secondary:hover {
+    background-color: hsl(var(--klozd-black));
+    color: rgb(255 255 255);
+  }
+  
+  @media (min-width: 768px) {
+    .btn-secondary {
+      padding: 1rem 2rem;
+    }
+  }
+  
+  .glass-nav {
+    border-bottom-width: 1px;
+    border-color: hsl(var(--border) / .5);
+    background-color: #fffc;
+    backdrop-filter: blur(16px);
   }
   
   .section-padding {
@@ -393,6 +553,31 @@
     animation-delay: 1.2s;
   }
   
+  .mockup-shadow {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) rotate(0);
+    }
+    50% {
+      transform: translateY(-10px) rotate(1deg);
+    }
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  
   /* Custom select arrow */
   select {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -404,5 +589,16 @@
   
   select:focus {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='hsl(48 100% 50%)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  
+  /* Espace entre header et contenu */
+  #root {
+    padding-top: 80px;
+  }
+  
+  @media (min-width: 768px) {
+    #root {
+      padding-top: 100px;
+    }
   }
 }

@@ -262,6 +262,8 @@ export class WaitlistSecurityService {
     firstName?: string;
     role?: string;
     leadVolumeRange?: string;
+    teamSize?: string;
+    revenue?: string;
     utmSource?: string;
     utmMedium?: string;
     utmCampaign?: string;
@@ -276,6 +278,8 @@ export class WaitlistSecurityService {
       firstName: this.sanitizeInput(data.firstName, 100),
       role: this.sanitizeInput(data.role, 50),
       leadVolumeRange: this.sanitizeInput(data.leadVolumeRange, 50),
+      teamSize: this.sanitizeInput(data.teamSize, 50),
+      revenue: this.sanitizeInput(data.revenue, 50),
       utmSource: this.sanitizeInput(data.utmSource, 100),
       utmMedium: this.sanitizeInput(data.utmMedium, 100),
       utmCampaign: this.sanitizeInput(data.utmCampaign, 100),
@@ -308,10 +312,26 @@ export class WaitlistSecurityService {
       }
     }
 
-    // 5. Validation du User-Agent
+    // 5. Validation des valeurs enum pour teamSize
+    if (sanitized.teamSize) {
+      const validTeamSizes = ['1', '2-5', '6-10', '11-20', '20+'];
+      if (!validTeamSizes.includes(sanitized.teamSize)) {
+        throw new BadRequestException('Taille d\'équipe invalide');
+      }
+    }
+
+    // 6. Validation des valeurs enum pour revenue
+    if (sanitized.revenue) {
+      const validRevenues = ['0-50k', '50k-200k', '200k-500k', '500k-1M', '1M+'];
+      if (!validRevenues.includes(sanitized.revenue)) {
+        throw new BadRequestException('Chiffre d\'affaires invalide');
+      }
+    }
+
+    // 7. Validation du User-Agent
     this.validateUserAgent(data.userAgent);
 
-    // 6. Détection d'activité suspecte
+    // 8. Détection d'activité suspecte
     const suspiciousCheck = await this.detectSuspiciousActivity(
       data.email,
       data.ip,

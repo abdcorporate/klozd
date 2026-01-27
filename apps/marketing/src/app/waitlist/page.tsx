@@ -46,11 +46,11 @@ export default function WaitlistPage() {
               </div>
               
               <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 animate-fade-in-up delay-300">
-                Fais partie des <span className="text-gradient">100 pionniers</span>
+                Fais partie des <span className="text-gradient">500 pionniers</span>
               </h1>
               
               <p className="text-lg md:text-xl text-muted-foreground mb-4 max-w-2xl mx-auto animate-fade-in-up delay-400">
-                Les 100 premiers inscrits bénéficient d'un <strong className="text-foreground">accès prioritaire</strong>, d'un tarif fondateur à vie et d'un canal privé pour co-construire KLOZD avec nous.
+                Les 500 premiers inscrits bénéficient d'un <strong className="text-foreground">accès prioritaire</strong>, d'un tarif fondateur à vie et d'un canal privé pour co-construire KLOZD avec nous.
               </p>
               <p className="text-sm text-muted-foreground animate-fade-in delay-500">
                 Une fois les places parties, c'est fini.

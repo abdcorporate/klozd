@@ -349,6 +349,6 @@ const submitData = {
 
 ---
 
-**Date** : 2025-01-27  
+**Date** : 2026-01-27  
 **Auteur** : Patch de sécurisation des endpoints publics  
 **Version** : 1.0.0
