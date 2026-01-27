@@ -55,8 +55,9 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
     setIsSubmitting(true);
     setSubmitStatus(null);
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const urlParams = new URLSearchParams(window.location.search);
       
       const payload = {
@@ -298,10 +299,15 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
       {/* Error message */}
       {submitStatus === "error" && (
         <div className="sm:col-span-2 p-3 rounded-lg bg-red-50 border border-red-200">
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-600 font-medium mb-1">
             {language === "fr"
-              ? "Une erreur est survenue. Veuillez réessayer."
-              : "An error occurred. Please try again."}
+              ? "Erreur de connexion"
+              : "Connection error"}
+          </p>
+          <p className="text-xs text-red-500">
+            {language === "fr"
+              ? "Impossible de se connecter au serveur. Vérifiez que l'API est démarrée sur http://localhost:3001"
+              : "Unable to connect to server. Please check that the API is running on http://localhost:3001"}
           </p>
         </div>
       )}
