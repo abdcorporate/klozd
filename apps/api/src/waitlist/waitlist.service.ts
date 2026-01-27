@@ -72,19 +72,37 @@ export class WaitlistService {
     }
 
     // 4. Sanitizer les données avant insertion
-    const sanitizedData = {
+    const sanitizedData: any = {
       email: normalizedEmail,
-      firstName: this.securityService.sanitizeInput(dto.firstName, 100),
-      role: this.securityService.sanitizeInput(dto.role, 50)?.toLowerCase(),
-      leadVolumeRange: this.securityService.sanitizeInput(dto.leadVolumeRange, 50),
-      teamSize: this.securityService.sanitizeInput(dto.teamSize, 50),
-      revenue: this.securityService.sanitizeInput(dto.revenue, 50),
-      utmSource: this.securityService.sanitizeInput(dto.utmSource, 100),
-      utmMedium: this.securityService.sanitizeInput(dto.utmMedium, 100),
-      utmCampaign: this.securityService.sanitizeInput(dto.utmCampaign, 100),
-      ip: dto.ip || null,
-      userAgent: dto.userAgent || null,
     };
+
+    // Ajouter uniquement les champs non vides
+    const firstName = this.securityService.sanitizeInput(dto.firstName, 100);
+    if (firstName) sanitizedData.firstName = firstName;
+
+    const role = this.securityService.sanitizeInput(dto.role, 50)?.toLowerCase();
+    if (role) sanitizedData.role = role;
+
+    const leadVolumeRange = this.securityService.sanitizeInput(dto.leadVolumeRange, 50);
+    if (leadVolumeRange) sanitizedData.leadVolumeRange = leadVolumeRange;
+
+    const teamSize = this.securityService.sanitizeInput(dto.teamSize, 50);
+    if (teamSize) sanitizedData.teamSize = teamSize;
+
+    const revenue = this.securityService.sanitizeInput(dto.revenue, 50);
+    if (revenue) sanitizedData.revenue = revenue;
+
+    const utmSource = this.securityService.sanitizeInput(dto.utmSource, 100);
+    if (utmSource) sanitizedData.utmSource = utmSource;
+
+    const utmMedium = this.securityService.sanitizeInput(dto.utmMedium, 100);
+    if (utmMedium) sanitizedData.utmMedium = utmMedium;
+
+    const utmCampaign = this.securityService.sanitizeInput(dto.utmCampaign, 100);
+    if (utmCampaign) sanitizedData.utmCampaign = utmCampaign;
+
+    if (dto.ip) sanitizedData.ip = dto.ip;
+    if (dto.userAgent) sanitizedData.userAgent = dto.userAgent;
 
     // 5. Créer une nouvelle entrée
     // Note: Temporary cast until Prisma client is regenerated

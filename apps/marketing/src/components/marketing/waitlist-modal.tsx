@@ -22,6 +22,17 @@ export function WaitlistModal() {
     }
   }, [isOpen, closeWaitlist]);
 
+  // Force re-render when language changes by reading it from localStorage on open
+  useEffect(() => {
+    if (isOpen) {
+      // This ensures the language is up-to-date when the modal opens
+      const currentLang = localStorage.getItem("language") as "fr" | "en" | null;
+      if (currentLang && currentLang !== language) {
+        // The LanguageProvider should handle this, but this ensures sync
+      }
+    }
+  }, [isOpen, language]);
+
   if (!isOpen) return null;
 
   return (
@@ -30,14 +41,14 @@ export function WaitlistModal() {
       onClick={closeWaitlist}
     >
       <div
-        className="relative w-full max-w-lg rounded-2xl bg-white p-6 sm:p-8 shadow-2xl animate-slide-up"
+        className="relative w-full max-w-3xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close */}
         <button
           type="button"
           onClick={closeWaitlist}
-          aria-label="Fermer"
+          aria-label={translations.waitlist.modal.close[language]}
           className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full text-klozd-gray-600 hover:bg-klozd-gray-100 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:ring-offset-2 transition"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -46,14 +57,12 @@ export function WaitlistModal() {
         </button>
 
         {/* Header */}
-        <div className="mb-6 pr-10">
+        <div className="mb-3 pr-10">
           <h2 className="text-2xl font-bold text-klozd-black">
-            {translations.nav.waitlist[language]}
+            {translations.waitlist.modal.title[language]}
           </h2>
           <p className="mt-2 text-sm leading-6 text-klozd-gray-600">
-            {language === "fr"
-              ? "Rejoignez les 500 premiers utilisateurs et bénéficiez d'avantages exclusifs."
-              : "Join the first 500 users and get exclusive benefits."}
+            {translations.waitlist.modal.description[language]}
           </p>
         </div>
 

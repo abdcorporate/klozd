@@ -8,7 +8,7 @@ export default function Home() {
 
   return (
     <>
-      <div id="root" ref={rootRef} style={{ paddingTop: '80px' }}></div>
+      <div id="root" ref={rootRef} style={{ paddingTop: '60px' }}></div>
       <Script
         src="/assets/index-BgtM3Jyb.js"
         strategy="afterInteractive"

@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLanguage } from "./language-provider";
+import { translations } from "@/lib/translations";
 import { Button } from "@/components/ui/button";
 
 const waitlistSchema = z.object({
@@ -124,19 +125,17 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
           </svg>
         </div>
         <h3 className="text-xl font-semibold text-klozd-black mb-2">
-          {language === "fr" ? "Inscription réussie !" : "Successfully registered!"}
+          {translations.waitlist.form.success[language]}
         </h3>
         <p className="text-klozd-gray-600">
-          {language === "fr"
-            ? "Nous vous recontacterons bientôt."
-            : "We'll contact you soon."}
+          {translations.waitlist.form.successMessage[language]}
         </p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+    <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-x-8 gap-y-5">
       {/* Honeypot field - invisible pour les bots */}
       <input
         type="text"
@@ -148,166 +147,146 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
       />
       <input type="hidden" {...register("formRenderedAt")} />
 
-      {/* Email (full) */}
-      <div className="sm:col-span-2 space-y-2">
+      {/* Email */}
+      <div className="space-y-2 mb-4 pr-4">
         <label htmlFor="email" className="block text-sm font-medium text-klozd-black leading-tight">
-          {language === "fr" ? "Email" : "Email"} <span className="text-klozd-yellow">*</span>
+          {translations.waitlist.form.email[language]} <span className="text-klozd-yellow">*</span>
         </label>
         <input
           id="email"
           type="email"
           {...register("email")}
           required
-          placeholder={language === "fr" ? "votre@email.com" : "your@email.com"}
-          className="block h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 text-klozd-black placeholder:text-klozd-gray-400 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+          placeholder={translations.waitlist.form.emailPlaceholder[language]}
+          className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 text-[15px] leading-[48px] text-klozd-black placeholder:text-klozd-gray-400 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
         />
         {errors.email && (
           <p className="text-sm text-red-600">{errors.email.message}</p>
         )}
       </div>
 
-      {/* Prénom (full) */}
-      <div className="sm:col-span-2 space-y-2">
+      {/* Nom complet */}
+      <div className="space-y-2 mb-4 pl-4">
         <label htmlFor="firstName" className="block text-sm font-medium text-klozd-black leading-tight">
-          {language === "fr" ? "Prénom" : "First Name"}
+          {translations.waitlist.form.fullName[language]}
         </label>
         <input
           id="firstName"
           type="text"
           {...register("firstName")}
-          placeholder={language === "fr" ? "Jean" : "John"}
-          className="block h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 text-klozd-black placeholder:text-klozd-gray-400 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+          placeholder={translations.waitlist.form.namePlaceholder[language]}
+          className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 text-[15px] leading-[48px] text-klozd-black placeholder:text-klozd-gray-400 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
         />
       </div>
 
       {/* Secteur */}
-      <div className="space-y-2">
+      <div className="space-y-2 mb-4 pr-4">
         <label htmlFor="role" className="block text-sm font-medium text-klozd-black leading-tight">
-          {language === "fr" ? "Secteur d'activités" : "Industry"}
+          {translations.waitlist.form.industry[language]}
         </label>
         <div className="relative">
           <select
             id="role"
             {...register("role")}
-            className="block h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 pr-11 text-klozd-black appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            style={{ paddingRight: '5rem' }}
           >
             <option value="">
-              {language === "fr" ? "Sélectionner un secteur" : "Select an industry"}
+              {translations.waitlist.form.selectIndustry[language]}
             </option>
-            <option value="it">{language === "fr" ? "IT / Technologie" : "IT / Technology"}</option>
-            <option value="real-estate">{language === "fr" ? "Immobilier" : "Real Estate"}</option>
-            <option value="finance">{language === "fr" ? "Finance / Assurance" : "Finance / Insurance"}</option>
-            <option value="coaching">{language === "fr" ? "Coaching / Formation" : "Coaching / Training"}</option>
-            <option value="ecommerce">{language === "fr" ? "E-commerce / Retail" : "E-commerce / Retail"}</option>
-            <option value="health">{language === "fr" ? "Santé / Bien-être" : "Health / Wellness"}</option>
-            <option value="automotive">{language === "fr" ? "Automobile" : "Automotive"}</option>
-            <option value="construction">{language === "fr" ? "BTP / Construction" : "Construction"}</option>
-            <option value="consulting">{language === "fr" ? "Conseil / Services" : "Consulting / Services"}</option>
-            <option value="other">{language === "fr" ? "Autre" : "Other"}</option>
+            <option value="it">{translations.waitlist.industries.it[language]}</option>
+            <option value="real-estate">{translations.waitlist.industries.realEstate[language]}</option>
+            <option value="finance">{translations.waitlist.industries.finance[language]}</option>
+            <option value="coaching">{translations.waitlist.industries.coaching[language]}</option>
+            <option value="ecommerce">{translations.waitlist.industries.ecommerce[language]}</option>
+            <option value="health">{translations.waitlist.industries.health[language]}</option>
+            <option value="automotive">{translations.waitlist.industries.automotive[language]}</option>
+            <option value="construction">{translations.waitlist.industries.construction[language]}</option>
+            <option value="consulting">{translations.waitlist.industries.consulting[language]}</option>
+            <option value="other">{translations.waitlist.industries.other[language]}</option>
           </select>
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-klozd-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
         </div>
       </div>
 
       {/* Équipe */}
-      <div className="space-y-2">
+      <div className="space-y-2 mb-4 pl-4">
         <label htmlFor="teamSize" className="block text-sm font-medium text-klozd-black leading-tight">
-          {language === "fr" ? "Équipe" : "Team Size"}
+          {translations.waitlist.form.teamSize[language]}
         </label>
         <div className="relative">
           <select
             id="teamSize"
             {...register("teamSize")}
-            className="block h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 pr-11 text-klozd-black appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            style={{ paddingRight: '5rem' }}
           >
             <option value="">
-              {language === "fr" ? "Sélectionner une taille" : "Select a size"}
+              {translations.waitlist.form.selectTeamSize[language]}
             </option>
-            <option value="1">{language === "fr" ? "1 personne" : "1 person"}</option>
-            <option value="2-5">{language === "fr" ? "2 - 5 personnes" : "2 - 5 people"}</option>
-            <option value="6-10">{language === "fr" ? "6 - 10 personnes" : "6 - 10 people"}</option>
-            <option value="11-20">{language === "fr" ? "11 - 20 personnes" : "11 - 20 people"}</option>
-            <option value="20+">{language === "fr" ? "20+ personnes" : "20+ people"}</option>
+            <option value="1">{translations.waitlist.teamSizes.one[language]}</option>
+            <option value="2-5">{translations.waitlist.teamSizes.twoFive[language]}</option>
+            <option value="6-10">{translations.waitlist.teamSizes.sixTen[language]}</option>
+            <option value="11-20">{translations.waitlist.teamSizes.elevenTwenty[language]}</option>
+            <option value="20+">{translations.waitlist.teamSizes.twentyPlus[language]}</option>
           </select>
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-klozd-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
         </div>
       </div>
 
-      {/* Leads */}
-      <div className="space-y-2">
+      {/* Volume */}
+      <div className="space-y-2 mb-4 pr-4">
         <label htmlFor="leadVolumeRange" className="block text-sm font-medium text-klozd-black leading-tight">
-          {language === "fr" ? "Volume de leads mensuel" : "Monthly Lead Volume"}
+          {translations.waitlist.form.leadVolume[language]}
         </label>
         <div className="relative">
           <select
             id="leadVolumeRange"
             {...register("leadVolumeRange")}
-            className="block h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 pr-11 text-klozd-black appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            style={{ paddingRight: '5rem' }}
           >
             <option value="">
-              {language === "fr" ? "Sélectionner un volume" : "Select a volume"}
+              {translations.waitlist.form.selectVolume[language]}
             </option>
-            <option value="0-50">{language === "fr" ? "0 - 50 leads/mois" : "0 - 50 leads/month"}</option>
-            <option value="50-200">{language === "fr" ? "50 - 200 leads/mois" : "50 - 200 leads/month"}</option>
-            <option value="200-500">{language === "fr" ? "200 - 500 leads/mois" : "200 - 500 leads/month"}</option>
-            <option value="500+">{language === "fr" ? "500+ leads/mois" : "500+ leads/month"}</option>
+            <option value="0-50">{translations.waitlist.leadVolumes.zeroFifty[language]}</option>
+            <option value="50-200">{translations.waitlist.leadVolumes.fiftyTwoHundred[language]}</option>
+            <option value="200-500">{translations.waitlist.leadVolumes.twoHundredFiveHundred[language]}</option>
+            <option value="500+">{translations.waitlist.leadVolumes.fiveHundredPlus[language]}</option>
           </select>
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-klozd-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
         </div>
       </div>
 
       {/* CA */}
-      <div className="space-y-2">
+      <div className="space-y-2 mb-4 pl-4">
         <label htmlFor="revenue" className="block text-sm font-medium text-klozd-black leading-tight">
-          {language === "fr" ? "Chiffre d'affaires mensuel" : "Monthly Revenue"}
+          {translations.waitlist.form.revenue[language]}
         </label>
         <div className="relative">
           <select
             id="revenue"
             {...register("revenue")}
-            className="block h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 pr-11 text-klozd-black appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+            style={{ paddingRight: '5rem' }}
           >
             <option value="">
-              {language === "fr" ? "Sélectionner un CA" : "Select revenue"}
+              {translations.waitlist.form.selectRevenue[language]}
             </option>
-            <option value="0-50k">{language === "fr" ? "0 - 50k€" : "0 - 50k€"}</option>
-            <option value="50k-200k">{language === "fr" ? "50k - 200k€" : "50k - 200k€"}</option>
-            <option value="200k-500k">{language === "fr" ? "200k - 500k€" : "200k - 500k€"}</option>
-            <option value="500k-1M">{language === "fr" ? "500k - 1M€" : "500k - 1M€"}</option>
-            <option value="1M+">{language === "fr" ? "1M€+" : "1M€+"}</option>
+            <option value="0-50k">{translations.waitlist.revenues.zeroFiftyK[language]}</option>
+            <option value="50k-200k">{translations.waitlist.revenues.fiftyKTwoHundredK[language]}</option>
+            <option value="200k-500k">{translations.waitlist.revenues.twoHundredKFiveHundredK[language]}</option>
+            <option value="500k-1M">{translations.waitlist.revenues.fiveHundredKOneM[language]}</option>
+            <option value="1M+">{translations.waitlist.revenues.oneMPlus[language]}</option>
           </select>
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-klozd-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
         </div>
       </div>
 
       {/* Error message */}
       {submitStatus === "error" && (
-        <div className="sm:col-span-2 p-3 rounded-lg bg-red-50 border border-red-200">
+        <div className="col-span-2 p-3 rounded-lg bg-red-50 border border-red-200">
           <p className="text-sm text-red-600 font-medium mb-1">
-            {language === "fr"
-              ? "Erreur de connexion"
-              : "Connection error"}
+            {translations.waitlist.form.error[language]}
           </p>
           <p className="text-xs text-red-500">
-            {language === "fr"
-              ? "Impossible de se connecter au serveur. Vérifiez que l'API est démarrée sur http://localhost:3001"
-              : "Unable to connect to server. Please check that the API is running on http://localhost:3001"}
+            {translations.waitlist.form.errorMessage[language]}
           </p>
         </div>
       )}
@@ -316,21 +295,15 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="sm:col-span-2 inline-flex h-12 w-full items-center justify-center rounded-xl bg-primary px-5 text-base font-medium text-primary-foreground shadow-lg transition hover:bg-primary/90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
+        className="col-span-2 h-12 w-full rounded-xl bg-klozd-yellow px-5 text-base font-medium text-klozd-black shadow-lg transition hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
       >
         {isSubmitting
-          ? language === "fr"
-            ? "Inscription en cours..."
-            : "Submitting..."
-          : language === "fr"
-          ? "Rejoindre la Waitlist"
-          : "Join the Waitlist"}
+          ? translations.waitlist.form.submitting[language]
+          : translations.waitlist.form.submit[language]}
       </button>
 
-      <p className="sm:col-span-2 text-center text-xs text-klozd-gray-600">
-        {language === "fr"
-          ? "En vous inscrivant, vous acceptez d'être recontacté. Aucun spam."
-          : "By signing up, you agree to be contacted. No spam."}
+      <p className="col-span-2 text-center text-xs text-klozd-gray-600 mt-4">
+        {translations.waitlist.form.disclaimer[language]}
       </p>
     </form>
   );
