@@ -9,7 +9,7 @@ import { translations } from "@/lib/translations";
 import { Button } from "@/components/ui/button";
 
 const waitlistSchema = z.object({
-  email: z.string().email("Email invalide"),
+  email: z.string().min(1, "Email requis").email("Email invalide"),
   firstName: z.string().optional(),
   role: z.string().optional(),
   leadVolumeRange: z.string().optional(),
@@ -30,6 +30,7 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"success" | "error" | null>(null);
   const [formRenderedAt] = useState(new Date().toISOString());
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Extraire les paramètres UTM de l'URL
   useEffect(() => {
@@ -42,17 +43,27 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitted },
     reset,
+    trigger,
   } = useForm<WaitlistFormData>({
     resolver: zodResolver(waitlistSchema),
+    mode: "onSubmit",
     defaultValues: {
       honeypot: "",
       formRenderedAt: formRenderedAt,
     },
   });
 
+  // Debug: log errors when form is submitted
+  useEffect(() => {
+    if (isSubmitted && Object.keys(errors).length > 0) {
+      console.log("Form validation errors:", errors);
+    }
+  }, [errors, isSubmitted]);
+
   const onSubmit = async (data: WaitlistFormData) => {
+    setEmailError(null);
     setIsSubmitting(true);
     setSubmitStatus(null);
 
@@ -134,8 +145,30 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
     );
   }
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const emailInput = form.querySelector('input[type="email"]') as HTMLInputElement;
+    const emailValue = emailInput?.value?.trim() || "";
+
+    // Validate email
+    if (!emailValue) {
+      setEmailError(language === "fr" ? "L'email est requis" : "Email is required");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailValue)) {
+      setEmailError(language === "fr" ? "Email invalide" : "Invalid email");
+      return;
+    }
+
+    setEmailError(null);
+    handleSubmit(onSubmit)(e);
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-x-8 gap-y-5">
+    <form onSubmit={handleFormSubmit} className="grid grid-cols-2 gap-x-8 gap-y-5">
       {/* Honeypot field - invisible pour les bots */}
       <input
         type="text"
@@ -150,18 +183,27 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
       {/* Email */}
       <div className="space-y-2 mb-4 pr-4">
         <label htmlFor="email" className="block text-sm font-medium text-klozd-black leading-tight">
-          {translations.waitlist.form.email[language]} <span className="text-klozd-yellow">*</span>
+          {translations.waitlist.form.email[language]} <span className="text-red-500">*</span>
         </label>
         <input
           id="email"
           type="email"
           {...register("email")}
-          required
+          onChange={() => setEmailError(null)}
           placeholder={translations.waitlist.form.emailPlaceholder[language]}
-          className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white px-4 text-[15px] leading-[48px] text-klozd-black placeholder:text-klozd-gray-400 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
+          className={`h-12 w-full rounded-xl border bg-white px-4 text-[15px] leading-[48px] text-klozd-black placeholder:text-klozd-gray-400 focus:outline-none focus:ring-2 transition ${
+            emailError
+              ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+              : "border-klozd-gray-400 focus:ring-klozd-yellow focus:border-klozd-yellow"
+          }`}
         />
-        {errors.email && (
-          <p className="text-sm text-red-600">{errors.email.message}</p>
+        {emailError && (
+          <p className="text-sm text-red-500 mt-1 flex items-center gap-1">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {emailError}
+          </p>
         )}
       </div>
 
@@ -188,8 +230,7 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
           <select
             id="role"
             {...register("role")}
-            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
-            style={{ paddingRight: '5rem' }}
+            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 pl-4 pr-10 text-[15px] text-klozd-black appearance-none cursor-pointer hover:border-klozd-yellow/50 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow focus:bg-white transition-all duration-200"
           >
             <option value="">
               {translations.waitlist.form.selectIndustry[language]}
@@ -217,8 +258,7 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
           <select
             id="teamSize"
             {...register("teamSize")}
-            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
-            style={{ paddingRight: '5rem' }}
+            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 pl-4 pr-10 text-[15px] text-klozd-black appearance-none cursor-pointer hover:border-klozd-yellow/50 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow focus:bg-white transition-all duration-200"
           >
             <option value="">
               {translations.waitlist.form.selectTeamSize[language]}
@@ -241,8 +281,7 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
           <select
             id="leadVolumeRange"
             {...register("leadVolumeRange")}
-            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
-            style={{ paddingRight: '5rem' }}
+            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 pl-4 pr-10 text-[15px] text-klozd-black appearance-none cursor-pointer hover:border-klozd-yellow/50 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow focus:bg-white transition-all duration-200"
           >
             <option value="">
               {translations.waitlist.form.selectVolume[language]}
@@ -264,8 +303,7 @@ export function WaitlistForm({ onSuccess }: WaitlistFormProps) {
           <select
             id="revenue"
             {...register("revenue")}
-            className="h-12 w-full rounded-xl border border-klozd-gray-400 bg-white pl-4 pr-20 text-[15px] leading-[48px] text-klozd-black appearance-none focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow transition"
-            style={{ paddingRight: '5rem' }}
+            className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50 pl-4 pr-10 text-[15px] text-klozd-black appearance-none cursor-pointer hover:border-klozd-yellow/50 focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:border-klozd-yellow focus:bg-white transition-all duration-200"
           >
             <option value="">
               {translations.waitlist.form.selectRevenue[language]}

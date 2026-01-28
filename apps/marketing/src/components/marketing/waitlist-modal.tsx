@@ -8,7 +8,7 @@ import { translations } from "@/lib/translations";
 
 export function WaitlistModal() {
   const { isOpen, closeWaitlist } = useWaitlist();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
 
   useEffect(() => {
     if (isOpen) {
@@ -22,16 +22,41 @@ export function WaitlistModal() {
     }
   }, [isOpen, closeWaitlist]);
 
-  // Force re-render when language changes by reading it from localStorage on open
+  // Sync language based on page content when modal opens
   useEffect(() => {
     if (isOpen) {
-      // This ensures the language is up-to-date when the modal opens
-      const currentLang = localStorage.getItem("language") as "fr" | "en" | null;
-      if (currentLang && currentLang !== language) {
-        // The LanguageProvider should handle this, but this ensures sync
-      }
+      // Add a small delay to ensure bundled content is fully rendered
+      const detectLanguage = () => {
+        const root = document.getElementById("root");
+        if (root) {
+          const pageText = root.textContent || "";
+
+          // Check for French phrases - if found, use French
+          const isFrench =
+            pageText.includes("Rejoindre la waitlist") ||
+            pageText.includes("Closez plus") ||
+            pageText.includes("Stressez moins") ||
+            pageText.includes("Fonctionnalités") ||
+            pageText.includes("Calculer mes économies") ||
+            pageText.includes("Calculez vos économies");
+
+          const detectedLang = isFrench ? "fr" : "en";
+
+          console.log("Modal detected language:", detectedLang, "isFrench:", isFrench, "pageText sample:", pageText.substring(0, 200));
+
+          // Force update the language
+          setLanguage(detectedLang);
+          localStorage.setItem("language", detectedLang);
+        }
+      };
+
+      // Run immediately and after a short delay
+      detectLanguage();
+      const timer = setTimeout(detectLanguage, 100);
+
+      return () => clearTimeout(timer);
     }
-  }, [isOpen, language]);
+  }, [isOpen, setLanguage]);
 
   if (!isOpen) return null;
 

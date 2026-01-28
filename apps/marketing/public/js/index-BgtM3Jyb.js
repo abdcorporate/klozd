@@ -23990,8 +23990,8 @@ const fD = {
   },
   hero: {
       badge: {
-          fr: "Lancement Q2 2025",
-          en: "Launching Q2 2025"
+          fr: "Lancement Q2 2026",
+          en: "Launching Q2 2026"
       },
       headline1: {
           fr: "La plateforme #1",
@@ -24533,7 +24533,7 @@ Switch to KLOZD.`
       items: {
           fr: [{
               question: "Quand KLOZD sera-t-il disponible ?",
-              answer: "KLOZD lance en Q2 2025. Rejoins la waitlist maintenant pour bénéficier de -50% à vie et d'un accès prioritaire."
+              answer: "KLOZD lance en Q2 2026. Rejoins la waitlist maintenant pour bénéficier de -50% à vie et d'un accès prioritaire."
           }, {
               question: "C'est compliqué à mettre en place ?",
               answer: "Pas du tout ! KLOZD est conçu pour la simplicité. La plupart des utilisateurs sont opérationnels en 15 minutes. Notre wizard d'onboarding te guide à chaque étape."
@@ -24552,7 +24552,7 @@ Switch to KLOZD.`
           }],
           en: [{
               question: "When will KLOZD be available?",
-              answer: "KLOZD launches in Q2 2025. Join the waitlist now to get -50% lifetime and priority access."
+              answer: "KLOZD launches in Q2 2026. Join the waitlist now to get -50% lifetime and priority access."
           }, {
               question: "Is it complicated to set up?",
               answer: "Not at all! KLOZD is designed for simplicity. Most users are operational in 15 minutes. Our onboarding wizard guides you through every step."
