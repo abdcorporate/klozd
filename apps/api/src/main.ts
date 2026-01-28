@@ -68,12 +68,16 @@ async function bootstrap() {
   // Enable cookie parser
   app.use(cookieParser());
 
-  // Global validation pipe
+  // Global validation pipe — forbidNonWhitelisted: false pour aligner dev/prod
+  // et accepter les champs optionnels du front (leadsVolume, utm_source, etc.) sans 400
+  const whitelist = true;
+  const forbidNonWhitelisted = false;
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
+      whitelist,
+      forbidNonWhitelisted,
       transform: true,
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
@@ -137,6 +141,7 @@ async function bootstrap() {
   console.log(`🚀 API KLOZD is running on http://${host}:${port}`);
   console.log(`📚 API Documentation: http://${host}:${port}/api-docs`);
   console.log(`🌍 Environment: ${nodeEnv}`);
+  console.log(`✅ Validation: NODE_ENV=${nodeEnv} whitelist=${whitelist} forbidNonWhitelisted=${forbidNonWhitelisted}`);
   const corsOriginsDisplay = typeof corsOrigins === 'boolean' 
     ? 'ALL (dev mode)' 
     : corsOrigins.join(', ');

@@ -235,13 +235,15 @@ export class WaitlistSecurityService {
   }
 
   /**
-   * Sanitize les inputs pour éviter les injections
+   * Sanitize les inputs pour éviter les injections.
+   * Accepte string | number pour éviter TypeError si le front envoie un nombre (ex. role, teamSize).
    */
-  sanitizeInput(input: string | undefined | null, maxLength: number = 255): string | undefined {
-    if (!input) return undefined;
+  sanitizeInput(input: string | number | undefined | null, maxLength: number = 255): string | undefined {
+    if (input == null || input === '') return undefined;
+    const s = typeof input === 'string' ? input : String(input);
 
     // Retirer les caractères de contrôle
-    let sanitized = input.replace(/[\x00-\x1F\x7F]/g, '');
+    let sanitized = s.replace(/[\x00-\x1F\x7F]/g, '');
 
     // Limiter la longueur
     if (sanitized.length > maxLength) {

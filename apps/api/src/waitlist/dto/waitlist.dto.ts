@@ -1,5 +1,20 @@
-import { IsEmail, IsOptional, IsString, MaxLength, Matches, Length, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MaxLength, Matches, Length, MinLength, ValidateBy } from 'class-validator';
 import { Transform } from 'class-transformer';
+
+/** Accepte string | number pour formRenderedAt (timestamp ms ou ISO string) — évite "must be a string" en prod */
+function IsStringOrNumber() {
+  return ValidateBy({
+    name: 'isStringOrNumber',
+    validator: {
+      validate(value: unknown) {
+        return value === undefined || value === null || typeof value === 'string' || typeof value === 'number';
+      },
+      defaultMessage() {
+        return 'formRenderedAt must be a string or number';
+      },
+    },
+  });
+}
 
 export class CreateWaitlistEntryDto {
   @IsEmail({}, { message: 'Email invalide' })
@@ -83,6 +98,7 @@ export class CreateWaitlistEntryDto {
 
   /** Accepte number (timestamp ms) ou string ; conversion dans le controller pour validateSecurity */
   @IsOptional()
+  @IsStringOrNumber()
   @Transform(({ value }) => (value != null && typeof value === 'number' ? String(value) : value) as string | undefined)
   formRenderedAt?: string | number;
 }

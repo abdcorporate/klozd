@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Prisma } from '@prisma/client';
 import { WaitlistService } from './waitlist.service';
 import { CreateWaitlistEntryDto } from './dto/waitlist.dto';
 import { PublicEndpointSecurityService } from '../common/services/public-endpoint-security.service';
@@ -156,10 +157,10 @@ export class WaitlistController {
           email: createDto.email,
           error: error?.message,
           stack: error?.stack,
+          code: error?.code,
         },
       );
 
-      // Logger les erreurs de validation de sécurité
       if (error instanceof BadRequestException) {
         this.securityService.logBlockedAttempt(
           error.message,
@@ -171,7 +172,15 @@ export class WaitlistController {
         throw error;
       }
 
-      // Pour les autres erreurs, retourner une erreur 500 avec un message générique
+      // Contrainte unique (email déjà inscrit) : renvoyer 200 alreadyJoined au lieu de 500
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return {
+          success: true,
+          message: 'already_joined',
+          alreadyJoined: true,
+        };
+      }
+
       throw new HttpException(
         'Erreur lors de l\'inscription à la waitlist. Veuillez réessayer plus tard.',
         HttpStatus.INTERNAL_SERVER_ERROR,
