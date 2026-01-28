@@ -15,6 +15,9 @@ export function WaitlistTrigger() {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
 
+      // Ne pas intercepter les clics à l'intérieur de la modale (ex: bouton submit)
+      if (target.closest('[role="dialog"]')) return;
+
       // Check for waitlist links
       const link = target.closest('a[href="#waitlist"], a[href*="waitlist"]');
       if (link) {

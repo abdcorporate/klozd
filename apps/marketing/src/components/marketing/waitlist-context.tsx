@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useRef, ReactNode } from "react";
 
 interface WaitlistContextType {
   isOpen: boolean;
@@ -12,8 +12,10 @@ const WaitlistContext = createContext<WaitlistContextType | undefined>(undefined
 
 export function WaitlistProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const openWaitlist = () => {
+    triggerRef.current = (document.activeElement as HTMLElement) || null;
     setIsOpen(true);
     document.body.style.overflow = "hidden";
   };
@@ -21,6 +23,12 @@ export function WaitlistProvider({ children }: { children: ReactNode }) {
   const closeWaitlist = () => {
     setIsOpen(false);
     document.body.style.overflow = "";
+    requestAnimationFrame(() => {
+      if (triggerRef.current && typeof triggerRef.current.focus === "function") {
+        triggerRef.current.focus();
+      }
+      triggerRef.current = null;
+    });
   };
 
   return (
