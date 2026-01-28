@@ -1,4 +1,5 @@
 import { IsEmail, IsOptional, IsString, MaxLength, Matches, Length, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateWaitlistEntryDto {
   @IsEmail({}, { message: 'Email invalide' })
@@ -24,10 +25,16 @@ export class CreateWaitlistEntryDto {
   @MaxLength(50)
   role?: string;
 
+  /** Alias front: leadVolumeRange (DB) ou leadsVolume (front) */
   @IsOptional()
   @IsString()
   @MaxLength(50)
   leadVolumeRange?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  leadsVolume?: string;
 
   @IsOptional()
   @IsString()
@@ -54,12 +61,29 @@ export class CreateWaitlistEntryDto {
   @MaxLength(100)
   utmCampaign?: string;
 
-  // Champs de sécurité (non validés, utilisés par PublicEndpointSecurityService)
+  /** UTM en snake_case (envoyé par le front) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  utm_source?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  utm_medium?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  utm_campaign?: string;
+
   @IsOptional()
   @IsString()
   honeypot?: string;
 
+  /** Accepte number (timestamp ms) ou string ; converti en string pour la validation sécurité */
   @IsOptional()
+  @Transform(({ value }) => (value != null && typeof value === 'number') ? String(value) : value)
   @IsString()
   formRenderedAt?: string;
 }

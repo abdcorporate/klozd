@@ -51,7 +51,16 @@ export class WaitlistController {
   ) {
     const requestInfo = this.securityService.extractRequestInfo(req);
 
-    // Valider les mesures de sécurité
+    // Honeypot anti-spam : si rempli, retourner succès sans écrire en DB
+    if (createDto.honeypot?.trim()) {
+      return {
+        success: true,
+        message: 'Inscription réussie',
+        alreadyJoined: false,
+      };
+    }
+
+    // Valider formRenderedAt (timestamp anti-bot)
     try {
       this.securityService.validateSecurity(
         createDto.honeypot,
@@ -72,21 +81,24 @@ export class WaitlistController {
     const ip = this.ipDetectionService.getClientIp(req);
     const userAgent = req.headers['user-agent'] || 'unknown';
 
-    // Validation supplémentaire : vérifier que l'email n'est pas déjà dans la base
-    // (double-check avant de créer, pour éviter les race conditions)
+    // Alias front : leadsVolume → leadVolumeRange, utm_source/medium/campaign → camelCase
+    const leadVolumeRange = createDto.leadsVolume ?? createDto.leadVolumeRange;
+    const utmSource = createDto.utm_source ?? createDto.utmSource;
+    const utmMedium = createDto.utm_medium ?? createDto.utmMedium;
+    const utmCampaign = createDto.utm_campaign ?? createDto.utmCampaign;
+
     try {
-      // Créer ou récupérer l'entrée
       const result = await this.waitlistService.createOrGetEntry({
         email: createDto.email,
-        name: createDto.name, // Accepté mais non persistant (le modèle Prisma n'a pas ce champ)
+        name: createDto.name,
         firstName: createDto.firstName,
         role: createDto.role,
-        leadVolumeRange: createDto.leadVolumeRange,
+        leadVolumeRange,
         teamSize: createDto.teamSize,
         revenue: createDto.revenue,
-        utmSource: createDto.utmSource,
-        utmMedium: createDto.utmMedium,
-        utmCampaign: createDto.utmCampaign,
+        utmSource,
+        utmMedium,
+        utmCampaign,
         ip,
         userAgent,
       });
@@ -100,9 +112,9 @@ export class WaitlistController {
         {
           email: createDto.email,
           alreadyJoined: result.alreadyJoined,
-          utmSource: createDto.utmSource,
-          utmMedium: createDto.utmMedium,
-          utmCampaign: createDto.utmCampaign,
+          utmSource,
+          utmMedium,
+          utmCampaign,
         },
       );
 

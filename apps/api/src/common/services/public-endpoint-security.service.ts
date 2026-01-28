@@ -36,15 +36,25 @@ export class PublicEndpointSecurityService {
    * Valide le timestamp token (formRenderedAt)
    * Si le formulaire est soumis trop rapidement (< 2s), c'est suspect
    */
-  validateTimestampToken(formRenderedAt?: string): SecurityValidationResult {
-    if (!formRenderedAt) {
-      // Pas de timestamp fourni, on accepte mais on log
+  validateTimestampToken(formRenderedAt?: string | number): SecurityValidationResult {
+    if (formRenderedAt == null || formRenderedAt === '') {
       this.logger.warn('No formRenderedAt timestamp provided');
       return { blocked: false };
     }
 
     try {
-      const renderedAt = new Date(formRenderedAt);
+      // Accepter number (epoch ms) ou string numérique
+      const ms =
+        typeof formRenderedAt === 'number'
+          ? formRenderedAt
+          : /^\d+$/.test(String(formRenderedAt).trim())
+            ? parseInt(String(formRenderedAt), 10)
+            : NaN;
+      const renderedAt = !Number.isNaN(ms) ? new Date(ms) : new Date(formRenderedAt as string);
+      if (Number.isNaN(renderedAt.getTime())) {
+        this.logger.warn(`Invalid formRenderedAt timestamp: ${formRenderedAt}`);
+        return { blocked: true, reason: 'Invalid formRenderedAt timestamp format' };
+      }
       const now = new Date();
       const timeDiff = now.getTime() - renderedAt.getTime();
 
