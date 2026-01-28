@@ -8,6 +8,8 @@ import {
   Req,
   Logger,
   BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -31,6 +33,14 @@ export class WaitlistController {
 
   @Post()
   @HttpCode(HttpStatus.OK)
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false, // accepter leadsVolume, utm_source, etc. sans rejeter
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  )
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per minute per IP (plus strict)
   @ApiOperation({ summary: 'Inscription à la waitlist' })
   @ApiResponse({
@@ -60,11 +70,17 @@ export class WaitlistController {
       };
     }
 
-    // Valider formRenderedAt (timestamp anti-bot)
+    // Valider formRenderedAt (timestamp anti-bot ; accepter number ou string)
+    const formRenderedAtStr =
+      createDto.formRenderedAt != null
+        ? typeof createDto.formRenderedAt === 'number'
+          ? String(createDto.formRenderedAt)
+          : String(createDto.formRenderedAt)
+        : undefined;
     try {
       this.securityService.validateSecurity(
         createDto.honeypot,
-        createDto.formRenderedAt,
+        formRenderedAtStr,
       );
     } catch (error: any) {
       this.securityService.logBlockedAttempt(

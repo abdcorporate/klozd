@@ -81,9 +81,8 @@ export class CreateWaitlistEntryDto {
   @IsString()
   honeypot?: string;
 
-  /** Accepte number (timestamp ms) ou string ; converti en string pour la validation sécurité */
+  /** Accepte number (timestamp ms) ou string ; conversion dans le controller pour validateSecurity */
   @IsOptional()
-  @Transform(({ value }) => (value != null && typeof value === 'number') ? String(value) : value)
-  @IsString()
-  formRenderedAt?: string;
+  @Transform(({ value }) => (value != null && typeof value === 'number' ? String(value) : value) as string | undefined)
+  formRenderedAt?: string | number;
 }
