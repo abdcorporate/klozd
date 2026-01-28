@@ -10,18 +10,35 @@ type FormState = "idle" | "submitting" | "success" | "error";
 
 export function WaitlistModal() {
   const { isOpen, closeWaitlist } = useWaitlist();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const [formState, setFormState] = useState<FormState>("idle");
   const emailInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Focus email when modal opens
+  // Sync EN/FR clicks from static HTML (e.g. landing nav) into context so modal/form translate
+  useEffect(() => {
+    const handleDocClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest?.('[role="dialog"]')) return;
+      const el = (e.target as HTMLElement).closest?.("button, a") as HTMLElement | null;
+      const t = el?.textContent?.trim();
+      if (t === "EN") setLanguage("en");
+      else if (t === "FR") setLanguage("fr");
+    };
+    document.addEventListener("click", handleDocClick, true);
+    return () => document.removeEventListener("click", handleDocClick, true);
+  }, [setLanguage]);
+
+  // Focus email when modal opens; sync language from localStorage (e.g. static HTML set it)
   useEffect(() => {
     if (isOpen) {
+      try {
+        const stored = localStorage.getItem("language");
+        if (stored === "en" || stored === "fr") setLanguage(stored);
+      } catch (_) {}
       const focusEmail = () => emailInputRef.current?.focus({ preventScroll: true });
       const t = setTimeout(focusEmail, 50);
       return () => clearTimeout(t);
     }
-  }, [isOpen]);
+  }, [isOpen, setLanguage]);
 
   // ESC: close only if not submitting
   useEffect(() => {

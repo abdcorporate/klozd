@@ -62,6 +62,7 @@ export function WaitlistForm({ onSuccess, onStateChange, emailInputRef }: Waitli
   const {
     register,
     handleSubmit,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<WaitlistFormData>({
     resolver: zodResolver(waitlistSchema),
@@ -76,10 +77,9 @@ export function WaitlistForm({ onSuccess, onStateChange, emailInputRef }: Waitli
     if (process.env.NODE_ENV !== "production") {
       console.log("[waitlist] submit invalid", errs);
     }
-    const msg = (errs.email?.message as string) ?? t.form.validationEmail[language];
-    setErrorMessage(msg);
-    setFormState("error");
-    setTimeout(() => emailInputRef?.current?.focus({ preventScroll: true }), 0);
+    // Inline errors only — no global banner; focus first invalid field
+    if (errs.email) setFocus("email");
+    else if (emailInputRef?.current) emailInputRef.current.focus({ preventScroll: true });
   };
 
   const onSubmit = async (data: WaitlistFormData) => {
@@ -142,11 +142,6 @@ export function WaitlistForm({ onSuccess, onStateChange, emailInputRef }: Waitli
     onSuccess?.();
   };
 
-  const handleRetry = () => {
-    setFormState("idle");
-    setErrorMessage("");
-  };
-
   // —— Success screen ——
   if (formState === "success") {
     return (
@@ -193,24 +188,7 @@ export function WaitlistForm({ onSuccess, onStateChange, emailInputRef }: Waitli
       <input type="text" {...register("honeypot")} tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" />
       <input type="hidden" {...register("formRenderedAt")} />
 
-      {formState === "error" && (
-        <div
-          className="col-span-2 p-3 rounded-lg bg-red-50 border border-red-200 transition-all duration-200 ease-out -translate-y-0 opacity-100"
-          role="alert"
-          aria-live="assertive"
-          aria-atomic="true"
-          id="waitlist-error-banner"
-        >
-          <p className="text-sm text-red-600 font-medium">{errorMessage}</p>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="mt-2 text-sm font-medium text-red-600 hover:text-red-700 underline focus:outline-none focus:ring-2 focus:ring-klozd-yellow focus:ring-offset-2 rounded"
-          >
-            {tModal.retryButton[language]}
-          </button>
-        </div>
-      )}
+      {/* Removed global error banner: inline errors only */}
 
       <div className="space-y-2 mb-4 pr-4">
         <label htmlFor="waitlist-email" className="block text-sm font-medium text-klozd-black leading-tight">
@@ -232,12 +210,16 @@ export function WaitlistForm({ onSuccess, onStateChange, emailInputRef }: Waitli
               ? "border-red-500 bg-red-50/50 focus:ring-red-500 focus:border-red-500"
               : "border-klozd-gray-400 bg-white focus:ring-klozd-yellow focus:border-klozd-yellow"
           }`}
-          aria-invalid={!!errors.email}
-          aria-describedby={errors.email ? "waitlist-email-err" : undefined}
+          aria-invalid={!!errors.email || (formState === "error" && !!errorMessage)}
+          aria-describedby={errors.email || (formState === "error" && errorMessage) ? "waitlist-email-err" : undefined}
         />
-        {(errors.email?.message != null) && (
-          <p id="waitlist-email-err" className="text-sm text-red-500 mt-1" role="alert" aria-live="assertive">
-            {String(errors.email.message)}
+        {((errors.email?.message != null) || (formState === "error" && errorMessage)) && (
+          <p id="waitlist-email-err" className="text-xs text-klozd-gray-600 mt-1" role="alert" aria-live="polite">
+            {String(
+              errors.email?.message === "Email requis" || errors.email?.message === "Email invalide"
+                ? t.form.validationEmail[language]
+                : (errors.email?.message ?? errorMessage)
+            )}
           </p>
         )}
       </div>

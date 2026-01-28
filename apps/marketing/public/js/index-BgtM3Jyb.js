@@ -24655,8 +24655,8 @@ Switch to KLOZD.`
           en: "Terms"
       },
       copyright: {
-          fr: "© 2025 KLOZD. Conçu pour les entrepreneurs qui veulent scaler.",
-          en: "© 2025 KLOZD. Built for entrepreneurs who want to scale."
+          fr: "© 2026 KLOZD. Conçu pour les entrepreneurs qui veulent scaler.",
+          en: "© 2026 KLOZD. Built for entrepreneurs who want to scale."
       }
   }
 }
